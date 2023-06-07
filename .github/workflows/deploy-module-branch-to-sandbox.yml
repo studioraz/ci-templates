@@ -2,6 +2,13 @@ name: Deploy Module Branch to Sandbox
 on:
   workflow_dispatch:
   workflow_call:
+    secrets:
+      SANDBOX_ENV_HOST:
+        required: true
+      SANDBOX_ENV_USERNAME:
+        required: true
+      SANDBOX_ENV_SSH_KEY:
+        required: true
 jobs:
   deploy-to-sandbox:
     name: Deploy to Sandbox
