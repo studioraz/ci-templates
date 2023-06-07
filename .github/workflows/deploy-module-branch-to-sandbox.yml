@@ -1,6 +1,8 @@
 name: Deploy Module Branch to Sandbox
 on:
   workflow_dispatch:
+on:
+  workflow_call:
 jobs:
   deploy-to-sandbox:
     name: Deploy to Sandbox
