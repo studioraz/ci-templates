@@ -1,0 +1,93 @@
+name: Build & Deploy
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: Deployment environment
+        required: true
+        type: string
+      php-version:
+        description: PHP version
+        required: true
+        default: '8.3'
+        type: string
+      project-dir:
+        description: Magento root directory
+        required: true
+        default: '.'
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php-version }}
+          coverage: none
+          extensions: |
+            none, bcmath, ctype, curl, dom, gd, intl, mbstring, openssl, pdo_mysql, SimpleXML,
+            soap, xsl, zip, iconv, xmlwriter, fileinfo, tokenizer, sockets, posix
+          ini-values: |
+            memory_limit=-1
+            opcache.enable_cli=1
+            opcache.jit_buffer_size=256M
+
+      - name: Cache Composer vendor directory
+        id: vendor-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ inputs.project-dir }}/vendor
+          key: vendor-${{ hashFiles(format('{0}/composer.lock', inputs.project-dir)) }}
+          restore-keys: |
+            vendor-
+
+      - name: Get Composer cache dir
+        if: ${{ !steps.vendor-cache.outputs.cache-hit }}
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir --working-dir=${{ inputs.project-dir }})" >> $GITHUB_OUTPUT
+
+      - name: Cache Composer cache directory
+        if: ${{ !steps.vendor-cache.outputs.cache-hit }}
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-cache-${{ hashFiles(format('{0}/composer.lock', inputs.project-dir)) }}
+          restore-keys: |
+            composer-cache-
+
+      - name: Install Composer dependencies
+        if: ${{ !steps.vendor-cache.outputs.cache-hit }}
+        run: composer install --prefer-dist --no-progress --no-interaction --no-dev --optimize-autoloader
+        working-directory: ${{ inputs.project-dir }}
+
+      - name: Cache Magento generated code
+        id: cache-generated
+        uses: actions/cache@v4
+        with:
+          path: |
+            generated
+            ${{ inputs.project-dir }}/generated
+          key: magento-generated-${{ hashFiles(format('{0}/**/di.xml', inputs.project-dir)) }}
+
+      # Build static resources
+      - name: Build
+        uses: deployphp/action@v1
+        with:
+          dep: artifact:build localhost
+          sub-directory: "${{ inputs.project-dir }}"
+          private-key: ${{ secrets.SSH_CONNECTION_PRIVATE_KEY }}
+          skip-ssh-setup: false
+
+      - name: Deploy
+        uses: deployphp/action@v1
+        with:        
+          dep: artifact:deploy ${{ inputs.environment }}
+          sub-directory: "${{ inputs.project-dir }}"
+          skip-ssh-setup: true
