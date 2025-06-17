@@ -67,14 +67,14 @@ jobs:
         run: composer install --prefer-dist --no-progress --no-interaction --no-dev --optimize-autoloader
         working-directory: ${{ inputs.project-dir }}
 
-      - name: Cache Magento generated code
-        id: cache-generated
-        uses: actions/cache@v4
-        with:
-          path: |
-            generated
-            ${{ inputs.project-dir }}/generated
-          key: magento-generated-${{ hashFiles(format('{0}/**/di.xml', inputs.project-dir)) }}
+#      - name: Cache Magento generated code
+#        id: cache-generated
+#        uses: actions/cache@v4
+#        with:
+#          path: |
+#            generated
+#            ${{ inputs.project-dir }}/generated
+#          key: magento-generated-${{ hashFiles(format('{0}/**/di.xml', inputs.project-dir)) }}
 
       # Build static resources
       - name: Build
