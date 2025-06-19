@@ -46,7 +46,7 @@ jobs:
           path: ${{ inputs.project-dir }}/vendor
           key: vendor-${{ hashFiles(format('{0}/composer.lock', inputs.project-dir)) }}
           restore-keys: |
-            vendor-
+            vendor-${{ hashFiles(format('{0}/composer.lock', inputs.project-dir)) }}
 
       - name: Get Composer cache dir
         if: ${{ !steps.vendor-cache.outputs.cache-hit }}
