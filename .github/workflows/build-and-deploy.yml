@@ -33,7 +33,7 @@ jobs:
           coverage: none
           extensions: |
             none, bcmath, ctype, curl, dom, gd, intl, mbstring, openssl, pdo_mysql, SimpleXML,
-            soap, xsl, zip, iconv, xmlwriter, fileinfo, tokenizer, sockets, posix
+            soap, xsl, zip, iconv, xmlwriter, fileinfo, tokenizer, sockets, posix, ftp
           ini-values: |
             memory_limit=-1
             opcache.enable_cli=1
