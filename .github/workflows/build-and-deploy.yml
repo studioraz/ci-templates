@@ -67,16 +67,23 @@ jobs:
         run: composer install --prefer-dist --no-progress --no-interaction --no-dev --optimize-autoloader
         working-directory: ${{ inputs.project-dir }}
 
-#      - name: Cache Magento generated code
-#        id: cache-generated
-#        uses: actions/cache@v4
-#        with:
-#          path: |
-#            generated
-#            ${{ inputs.project-dir }}/generated
-#          key: magento-generated-${{ hashFiles(format('{0}/**/di.xml', inputs.project-dir)) }}
+      - name: Get Magento DI version
+        id: magento-di-version
+        run: echo "di_version=magento-di-$(bin/n98 studioraz:generate-di-version)" >> $GITHUB_OUTPUT
+        working-directory: ${{ inputs.project-dir }}
 
-      # Build static resources
+      - name: Cache Magento generated code
+        id: magento-di-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ inputs.project-dir }}/generated
+          key: ${{ steps.magento-di-version.outputs.di_version }}
+
+      - name: Compile Magento DI
+        if: ${{ !steps.magento-di-cache.outputs.cache-hit }}
+        run: bin/magento setup:di:compile --no-ansi --no-interaction
+
       - name: Build
         uses: deployphp/action@v1
         with:
@@ -87,7 +94,7 @@ jobs:
 
       - name: Deploy
         uses: deployphp/action@v1
-        with:        
+        with:
           dep: artifact:deploy ${{ inputs.environment }}
           sub-directory: "${{ inputs.project-dir }}"
           skip-ssh-setup: true
