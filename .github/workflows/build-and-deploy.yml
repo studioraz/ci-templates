@@ -12,11 +12,6 @@ on:
         required: true
         default: '8.3'
         type: string
-      project-dir:
-        description: Magento root directory
-        required: true
-        default: '.'
-        type: string
 
 jobs:
   build-and-deploy:
@@ -43,52 +38,53 @@ jobs:
         id: vendor-cache
         uses: actions/cache@v4
         with:
-          path: ${{ inputs.project-dir }}/vendor
-          key: vendor-${{ hashFiles(format('{0}/composer.lock', inputs.project-dir)) }}
+          path: ./vendor
+          key: vendor-${{ hashFiles('composer.lock') }}
           restore-keys: |
-            vendor-${{ hashFiles(format('{0}/composer.lock', inputs.project-dir)) }}
+            vendor-${{ hashFiles('composer.lock') }}
 
       - name: Get Composer cache dir
         if: ${{ !steps.vendor-cache.outputs.cache-hit }}
         id: composer-cache
-        run: echo "dir=$(composer config cache-files-dir --working-dir=${{ inputs.project-dir }})" >> $GITHUB_OUTPUT
+        run: echo "dir=$(composer config cache-files-dir --working-dir=.)" >> $GITHUB_OUTPUT
 
       - name: Cache Composer cache directory
         if: ${{ !steps.vendor-cache.outputs.cache-hit }}
         uses: actions/cache@v4
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
-          key: composer-cache-${{ hashFiles(format('{0}/composer.lock', inputs.project-dir)) }}
+          key: composer-cache-${{ hashFiles('composer.lock') }}
           restore-keys: |
             composer-cache-
 
       - name: Install Composer dependencies
         if: ${{ !steps.vendor-cache.outputs.cache-hit }}
         run: composer install --prefer-dist --no-progress --no-interaction --no-dev --optimize-autoloader
-        working-directory: ${{ inputs.project-dir }}
+        working-directory: .
 
       - name: Get Magento DI version
         id: magento-di-version
         run: echo "di_version=magento-di-$(bin/n98 studioraz:generate-di-version)" >> $GITHUB_OUTPUT
-        working-directory: ${{ inputs.project-dir }}
+        working-directory: .
 
       - name: Cache Magento generated code
         id: magento-di-cache
         uses: actions/cache@v4
         with:
           path: |
-            ${{ inputs.project-dir }}/generated
+            ./generated
           key: ${{ steps.magento-di-version.outputs.di_version }}
 
       - name: Compile Magento DI
         if: ${{ !steps.magento-di-cache.outputs.cache-hit }}
         run: bin/magento setup:di:compile --no-ansi --no-interaction
+        working-directory: .
 
       - name: Build
         uses: deployphp/action@v1
         with:
           dep: artifact:build localhost
-          sub-directory: "${{ inputs.project-dir }}"
+          sub-directory: "."
           private-key: ${{ secrets.SSH_CONNECTION_PRIVATE_KEY }}
           skip-ssh-setup: false
 
@@ -96,5 +92,5 @@ jobs:
         uses: deployphp/action@v1
         with:
           dep: artifact:deploy ${{ inputs.environment }}
-          sub-directory: "${{ inputs.project-dir }}"
+          sub-directory: "."
           skip-ssh-setup: true
