@@ -27,7 +27,7 @@ jobs:
           php-version: ${{ inputs.php-version }}
           coverage: none
           extensions: |
-            none, bcmath, ctype, curl, dom, gd, intl, mbstring, openssl, pdo_mysql, SimpleXML,
+            none, xml, bcmath, ctype, curl, dom, gd, intl, mbstring, openssl, pdo_mysql, SimpleXML,
             soap, xsl, zip, iconv, xmlwriter, fileinfo, tokenizer, sockets, posix, ftp, xmlreader
           ini-values: |
             memory_limit=-1
