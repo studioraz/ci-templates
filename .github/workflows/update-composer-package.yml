@@ -244,15 +244,26 @@ jobs:
         run: |
           git push --set-upstream origin "${{ steps.branch.outputs.name }}"
 
-      - name: Open Pull Request
+      # Replaces peter-evans/create-pull-request to avoid branch reset
+      - name: Open Pull Request (no reset)
         if: steps.commit.outputs.has_changes == 'true'
-        uses: peter-evans/create-pull-request@v6
+        uses: actions/github-script@v7
         with:
-          token: ${{ secrets.token || github.token }}
-          base: ${{ inputs.base-branch }}
-          branch: ${{ steps.branch.outputs.name }}
-          title: ${{ steps.meta.outputs.title }}
-          body: ${{ steps.meta.outputs.body }}
-          commit-message: ${{ steps.meta.outputs.commit_message }}
-          labels: dependencies, composer
-          draft: false
+          github-token: ${{ secrets.token || github.token }}
+          script: |
+            const { owner, repo } = context.repo;
+            const base = `${{ toJSON(inputs.base-branch) }}`;
+            const head = `${{ toJSON(steps.branch.outputs.name) }}`;
+            const title = ${{ toJSON(steps.meta.outputs.title) }};
+            const body = ${{ toJSON(steps.meta.outputs.body) }};
+
+            // Check for an existing open PR from this head to base
+            const prs = await github.paginate(github.rest.pulls.list, {
+              owner, repo, state: 'open', head: `${owner}:${head}`, base
+            });
+            if (prs.length > 0) {
+              core.info(`PR already exists: #${prs[0].number}`);
+            } else {
+              const res = await github.rest.pulls.create({ owner, repo, title, head, base, body });
+              core.info(`Opened PR #${res.data.number}: ${res.data.html_url}`);
+            }
