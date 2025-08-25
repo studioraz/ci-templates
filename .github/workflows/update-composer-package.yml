@@ -1,0 +1,183 @@
+name: Composer Update PR (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      package:
+        description: "Composer package name (e.g. vendor/package)"
+        type: string
+        required: true
+      version:
+        description: "Version/constraint (e.g. ^2.3 or 2.3.1). Leave blank for latest allowed."
+        type: string
+        required: false
+        default: ""
+      base-branch:
+        description: "Base branch to open the PR against"
+        type: string
+        required: false
+        default: "master"
+      pr-title:
+        description: "Custom PR title (optional)"
+        type: string
+        required: false
+        default: ""
+      pr-body:
+        description: "Custom PR body (optional)"
+        type: string
+        required: false
+        default: ""
+    secrets:
+      token:
+        description: "Personal access token (optional, falls back to GITHUB_TOKEN)"
+        required: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.base-branch }}
+
+      - name: Set up PHP (for Composer)
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ vars.PHP_VERSION || '8.3' }}
+          tools: composer
+
+      - name: Configure Composer auth from project
+        run: |
+          # Prefer repo root auth.json; fall back to ./src/auth.json
+          if [ -f ./auth.json ]; then
+            SRC=./auth.json
+          elif [ -f ./src/auth.json ]; then
+            SRC=./src/auth.json
+          else
+            SRC=""
+          fi
+          if [ -n "$SRC" ]; then
+            mkdir -p "$HOME/.composer"
+            cp "$SRC" "$HOME/.composer/auth.json"
+            echo "Using $SRC for Composer authentication."
+          else
+            echo "No project auth.json found, proceeding without custom Composer auth."
+          fi
+
+      - name: Create update branch name
+        id: branch
+        run: |
+          SAFE_PKG=$(echo "${{ inputs.package }}" | tr '/:@' '---' | tr '[:upper:]' '[:lower:]')
+          TS=$(date +%Y%m%d%H%M%S)
+          if [ -n "${{ inputs.version }}" ]; then
+            SAFE_VER=$(echo "${{ inputs.version }}" | tr '/:@^~*<>= ' '------' )
+            BRANCH="chore/update-${SAFE_PKG}-${SAFE_VER}-${TS}"
+          else
+            BRANCH="chore/update-${SAFE_PKG}-latest-${TS}"
+          fi
+          echo "name=$BRANCH" >> $GITHUB_OUTPUT
+
+      - name: Create branch from base
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "${{ steps.branch.outputs.name }}" "${{ inputs.base-branch }}"
+
+      - name: Update package with Composer (lock only)
+        id: composer
+        env:
+          PKG: ${{ inputs.package }}
+          VER: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          # Determine current locked version (if present)
+          OLD_VER=$(composer show --locked "$PKG" 2>/dev/null | awk -F': ' '/^versions/{print $2}' | awk -F', ' '{print $1}' || true)
+          echo "old_version=$OLD_VER" >> $GITHUB_OUTPUT
+
+          if [ -n "${VER}" ]; then
+            echo "Requiring ${PKG}:${VER} with lock update only"
+            composer require "${PKG}:${VER}" --no-interaction --no-progress --no-install
+            composer update "${PKG}" --no-interaction --no-progress --no-install
+          else
+            echo "Requiring latest allowed for ${PKG} with lock update only"
+            composer require "${PKG}" --no-interaction --no-progress --no-install
+            composer update "${PKG}" --no-interaction --no-progress --no-install
+          fi
+
+          # Determine new locked version after update
+          NEW_VER=$(composer show --locked "$PKG" 2>/dev/null | awk -F': ' '/^versions/{print $2}' | awk -F', ' '{print $1}' || true)
+          echo "new_version=$NEW_VER" >> $GITHUB_OUTPUT
+
+      - name: Compute PR metadata
+        id: meta
+        run: |
+          OLD=${{ steps.composer.outputs.old_version }}
+          NEW=${{ steps.composer.outputs.new_version }}
+          PKG=${{ inputs.package }}
+
+          if [ -n "${{ inputs.pr-title }}" ]; then
+            TITLE="${{ inputs.pr-title }}"
+          else
+            if [ -n "$OLD" ] && [ -n "$NEW" ] && [ "$OLD" != "$NEW" ]; then
+              TITLE="chore(composer): bump $PKG from $OLD to $NEW"
+            elif [ -n "$NEW" ]; then
+              TITLE="chore(composer): update $PKG to $NEW"
+            else
+              TITLE="chore(composer): update $PKG"
+            fi
+          fi
+
+          if [ -n "${{ inputs.pr-body }}" ]; then
+            BODY="${{ inputs.pr-body }}"
+          else
+            if [ -n "$OLD" ] && [ -n "$NEW" ] && [ "$OLD" != "$NEW" ]; then
+              BODY="This PR updates $PKG from $OLD to $NEW and refreshes composer.lock (no vendor install)."
+            else
+              BODY="This PR updates the package constraint and refreshes composer.lock (no vendor install)."
+            fi
+          fi
+
+          if [ -n "$OLD" ] && [ -n "$NEW" ] && [ "$OLD" != "$NEW" ]; then
+            COMMIT_MSG="chore(composer): bump $PKG from $OLD to $NEW"
+          elif [ -n "$NEW" ]; then
+            COMMIT_MSG="chore(composer): update $PKG to $NEW"
+          else
+            COMMIT_MSG="chore(composer): update $PKG"
+          fi
+
+          echo "title=$TITLE" >> $GITHUB_OUTPUT
+          echo "body=$BODY" >> $GITHUB_OUTPUT
+          echo "commit_message=$COMMIT_MSG" >> $GITHUB_OUTPUT
+
+      - name: Commit changes (if any)
+        id: commit
+        run: |
+          set -e
+          if [ -n "$(git status --porcelain)" ]; then
+            git add composer.json composer.lock || true
+            git commit -m "${{ steps.meta.outputs.commit_message }}"
+          else
+            echo "No changes detected; exiting early."
+            echo "no_changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Push branch (if commit was created)
+        if: steps.commit.outputs.no_changes != 'true'
+        run: |
+          set -e
+          git push --set-upstream origin "${{ steps.branch.outputs.name }}"
+
+      - name: Open Pull Request (if branch differs from base)
+        if: steps.commit.outputs.no_changes != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.token || secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          gh pr create \
+            --base "${{ inputs.base-branch }}"
