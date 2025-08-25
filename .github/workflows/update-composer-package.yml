@@ -1,4 +1,3 @@
-# Reusable workflow: studioraz/ci-templates/.github/workflows/update-composer-package.yml
 name: Update Composer Package & Open PR (Reusable)
 
 on:
