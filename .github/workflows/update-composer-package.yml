@@ -4,11 +4,11 @@ on:
   workflow_call:
     inputs:
       package:
-        description: "Composer package (e.g. vendor/package)"
+        description: "Composer package (e.g. vendor/package or * for all packages)"
         type: string
         required: true
       version:
-        description: "Version/constraint (e.g. ^3.2 or 3.2.1). Leave blank for latest allowed."
+        description: "Version/constraint (ignored when package is *). Leave blank for latest allowed."
         type: string
         required: false
         default: ""
@@ -94,9 +94,13 @@ jobs:
         id: branch
         run: |
           set -euo pipefail
-          SAFE_PKG=$(echo "${{ inputs.package }}" | tr '/:@' '---' | tr '[:upper:]' '[:lower:]')
+          if [ "${{ inputs.package }}" = "*" ]; then
+            SAFE_PKG="all-packages"
+          else
+            SAFE_PKG=$(echo "${{ inputs.package }}" | tr '/:@' '---' | tr '[:upper:]' '[:lower:]')
+          fi
           TS=$(date +%Y%m%d%H%M%S)
-          if [ -n "${{ inputs.version }}" ]; then
+          if [ -n "${{ inputs.version }}" ] && [ "${{ inputs.package }}" != "*" ]; then
             SAFE_VER=$(echo "${{ inputs.version }}" | tr '/:@^~*<>= ' '------' )
             BR="chore/update-${SAFE_PKG}-${SAFE_VER}-${TS}"
           else
@@ -152,19 +156,23 @@ jobs:
             FLAG="--with-all-dependencies"
           fi
 
-          OLD_VER="$(composer show --locked "$PKG" 2>/dev/null | awk -F': ' '/^versions/{print $2}' | awk -F', ' '{print $1}' || true)"
-          echo "old_version=$OLD_VER" >> "$GITHUB_OUTPUT"
-
-          if [ -n "$VER" ]; then
-            composer require "$PKG:$VER" --no-interaction --no-progress --no-install
-            composer update "$PKG" --no-interaction --no-progress --no-install $FLAG
+          if [ "$PKG" = "*" ]; then
+            composer update --no-interaction --no-progress --no-install $FLAG
           else
-            composer require "$PKG" --no-interaction --no-progress --no-install
-            composer update "$PKG" --no-interaction --no-progress --no-install $FLAG
-          fi
+            OLD_VER="$(composer show --locked "$PKG" 2>/dev/null | awk -F': ' '/^versions/{print $2}' | awk -F', ' '{print $1}' || true)"
+            echo "old_version=$OLD_VER" >> "$GITHUB_OUTPUT"
 
-          NEW_VER="$(composer show --locked "$PKG" 2>/dev/null | awk -F': ' '/^versions/{print $2}' | awk -F', ' '{print $1}' || true)"
-          echo "new_version=$NEW_VER" >> "$GITHUB_OUTPUT"
+            if [ -n "$VER" ]; then
+              composer require "$PKG:$VER" --no-interaction --no-progress --no-install
+              composer update "$PKG" --no-interaction --no-progress --no-install $FLAG
+            else
+              composer require "$PKG" --no-interaction --no-progress --no-install
+              composer update "$PKG" --no-interaction --no-progress --no-install $FLAG
+            fi
+
+            NEW_VER="$(composer show --locked "$PKG" 2>/dev/null | awk -F': ' '/^versions/{print $2}' | awk -F', ' '{print $1}' || true)"
+            echo "new_version=$NEW_VER" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Show changed files (debug)
         working-directory: ${{ steps.workdir.outputs.path }}
@@ -209,7 +217,9 @@ jobs:
           if [ -n "${IN_TITLE}" ]; then
             TITLE="${IN_TITLE}"
           else
-            if [ -n "${OLD}" ] && [ -n "${NEW}" ] && [ "${OLD}" != "${NEW}" ]; then
+            if [ "$PKG" = "*" ]; then
+              TITLE="chore(composer): update all packages"
+            elif [ -n "${OLD}" ] && [ -n "${NEW}" ] && [ "${OLD}" != "${NEW}" ]; then
               TITLE="chore(composer): bump ${PKG} from ${OLD} to ${NEW}"
             elif [ -n "${NEW}" ]; then
               TITLE="chore(composer): update ${PKG} to ${NEW}"
@@ -221,7 +231,9 @@ jobs:
           if [ -n "${IN_BODY}" ]; then
             BODY="${IN_BODY}"
           else
-            if [ -n "${OLD}" ] && [ -n "${NEW}" ] && [ "${OLD}" != "${NEW}" ]; then
+            if [ "$PKG" = "*" ]; then
+              BODY="This PR updates all Composer packages and refreshes composer.lock (no vendor install)."
+            elif [ -n "${OLD}" ] && [ -n "${NEW}" ] && [ "${OLD}" != "${NEW}" ]; then
               BODY="This PR updates ${PKG} from ${OLD} to ${NEW} and refreshes composer.lock (no vendor install)."
             else
               BODY="This PR updates the package constraint and refreshes composer.lock (no vendor install)."
