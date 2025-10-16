@@ -39,9 +39,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ./vendor
-          key: vendor-${{ hashFiles('composer.lock') }}
+          key: composer-cache-${{ hashFiles('composer.lock', 'composer.json') }}
           restore-keys: |
-            vendor-${{ hashFiles('composer.lock') }}
+            vendor-${{ hashFiles('composer.lock', 'composer.json') }}
 
       - name: Get Composer cache dir
         if: ${{ !steps.vendor-cache.outputs.cache-hit }}
