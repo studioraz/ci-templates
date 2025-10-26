@@ -13,32 +13,42 @@ on:
         required: false
         default: ""
       base-branch:
-        description: "Base branch to open the PR against"
+        description: "Base branch to open the PR against (when target=pr)"
         type: string
         required: false
         default: "master"
+      feature-branch:
+        description: "Custom feature branch name (when target=pr). Leave blank to auto-generate."
+        type: string
+        required: false
+        default: ""
+      target:
+        description: "Where to apply the update: 'pr' (create branch & PR) or 'inplace' (push to the branch this workflow runs on)"
+        type: string
+        required: false
+        default: "pr"
       pr-title:
-        description: "Override PR title"
+        description: "Override PR title (target=pr only)"
         type: string
         required: false
         default: ""
       pr-body:
-        description: "Override PR body"
+        description: "Override PR body (target=pr only)"
         type: string
         required: false
         default: ""
       force-pr:
-        description: "Open PR even if only composer.json changed but lock did not"
+        description: "Open PR even if only composer.json changed but lock did not (target=pr only)"
         type: boolean
         required: false
         default: false
       php-version:
-        description: "PHP version to use for Composer (passed by caller)."
+        description: "PHP version to use for Composer."
         type: string
         required: false
         default: "8.3"
       with-all-dependencies:
-        description: "If true, run composer update <pkg> --with-all-dependencies (backwards compatible; default false)."
+        description: "If true, run composer update <pkg> --with-all-dependencies."
         type: boolean
         required: false
         default: false
@@ -61,79 +71,115 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout base branch
+      - name: Determine target branch context
+        id: ctx
+        shell: bash
+        run: |
+          # Branch this workflow is running against (for 'inplace' mode)
+          # Prefer GITHUB_HEAD_REF on PRs, otherwise use GITHUB_REF_NAME
+          CUR="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          echo "current_branch=${CUR}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ inputs['base-branch'] }}
+          # In PR mode we start from base-branch; in inplace we check out the current branch
+          ref: ${{ inputs.target == 'pr' && inputs['base-branch'] || steps.ctx.outputs.current_branch }}
 
       - name: Set up PHP (for Composer)
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ inputs['php-version'] }}
           tools: composer
+          coverage: none
+          ini-values: memory_limit=-1
 
       - name: Configure Composer auth from project (optional)
+        shell: bash
         run: |
-          if [ -f ./auth.json ]; then
-            SRC=./auth.json
-          elif [ -f ./src/auth.json ]; then
-            SRC=./src/auth.json
-          else
-            SRC=""
-          fi
-          if [ -n "$SRC" ]; then
+          set -e
+          SRC=""
+          for p in ./auth.json ./src/auth.json; do
+            [[ -f "$p" ]] && SRC="$p" && break
+          done
+          if [[ -n "$SRC" ]]; then
             mkdir -p "$HOME/.composer"
             cp "$SRC" "$HOME/.composer/auth.json"
             echo "Using $SRC for Composer authentication."
           else
-            echo "No project auth.json found, proceeding without custom Composer auth."
+            echo "No project auth.json found; proceeding without custom Composer auth."
           fi
-
-      - name: Create update branch name
-        id: branch
-        run: |
-          set -euo pipefail
-          if [ "${{ inputs.package }}" = "*" ]; then
-            SAFE_PKG="all-packages"
-          else
-            SAFE_PKG=$(echo "${{ inputs.package }}" | tr '/:@' '---' | tr '[:upper:]' '[:lower:]')
-          fi
-          TS=$(date +%Y%m%d%H%M%S)
-          if [ -n "${{ inputs.version }}" ] && [ "${{ inputs.package }}" != "*" ]; then
-            SAFE_VER=$(echo "${{ inputs.version }}" | tr '/:@^~*<>= ' '------' )
-            BR="chore/update-${SAFE_PKG}-${SAFE_VER}-${TS}"
-          else
-            BR="chore/update-${SAFE_PKG}-latest-${TS}"
-          fi
-          echo "name=$BR" >> "$GITHUB_OUTPUT"
-
-      - name: Create branch from base
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -b "${{ steps.branch.outputs.name }}" "${{ inputs.base-branch }}"
 
       - name: Detect working directory
         id: workdir
+        shell: bash
         run: |
-          if [ -f composer.json ]; then
+          if [[ -f composer.json ]]; then
             echo "path=." >> $GITHUB_OUTPUT
-          elif [ -f src/composer.json ]; then
+          elif [[ -f src/composer.json ]]; then
             echo "path=src" >> $GITHUB_OUTPUT
           else
             echo "composer.json not found" >&2
             exit 1
           fi
 
+      - name: Compute/choose feature branch (PR mode)
+        id: branch
+        if: ${{ inputs.target == 'pr' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${{ inputs['feature-branch'] }}" ]]; then
+            BR="${{ inputs['feature-branch'] }}"
+          else
+            # Auto-generate from package/version
+            if [[ "${{ inputs.package }}" == "*" ]]; then
+              SAFE_PKG="all-packages"
+            else
+              SAFE_PKG="$(echo "${{ inputs.package }}" | tr '/:@' '---' | tr '[:upper:]' '[:lower:]')"
+            fi
+            TS=$(date +%Y%m%d%H%M%S)
+            if [[ -n "${{ inputs.version }}" && "${{ inputs.package }}" != "*" ]]; then
+              SAFE_VER="$(echo "${{ inputs.version }}" | tr '/:@^~*<>= ' '------' )"
+              BR="chore/update-${SAFE_PKG}-${SAFE_VER}-${TS}"
+            else
+              BR="chore/update-${SAFE_PKG}-latest-${TS}"
+            fi
+          fi
+          echo "name=$BR" >> "$GITHUB_OUTPUT"
+
+      - name: Create & switch to feature branch (PR mode)
+        if: ${{ inputs.target == 'pr' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin "${{ inputs['base-branch'] }}" --prune
+          git checkout -B "${{ steps.branch.outputs.name }}" "origin/${{ inputs['base-branch'] }}"
+
+      - name: Ensure we are on the current branch (inplace mode)
+        if: ${{ inputs.target != 'pr' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          BR="${{ steps.ctx.outputs.current_branch }}"
+          git fetch origin "$BR" --prune || true
+          # Checkout the branch by name (creates local branch tracking origin/BR if needed)
+          git checkout -B "$BR" "origin/$BR" || git checkout -B "$BR"
+          echo "Operating inplace on branch: $BR"
+
       - name: Capture pre-update checksums
         id: before
         working-directory: ${{ steps.workdir.outputs.path }}
+        shell: bash
         run: |
           set -euo pipefail
           for f in composer.json composer.lock; do
-            if [ -f "$f" ]; then
+            if [[ -f "$f" ]]; then
               sha=$(sha256sum "$f" | awk '{print $1}')
               echo "pre_${f%.*}_sha=$sha" >> "$GITHUB_OUTPUT"
             else
@@ -148,21 +194,22 @@ jobs:
           PKG: ${{ inputs.package }}
           VER: ${{ inputs.version }}
           WITH_ALL_DEPS: ${{ inputs['with-all-dependencies'] }}
+        shell: bash
         run: |
           set -euo pipefail
 
           FLAG=""
-          if [ "${WITH_ALL_DEPS}" = "true" ]; then
+          if [[ "${WITH_ALL_DEPS}" == "true" ]]; then
             FLAG="--with-all-dependencies"
           fi
 
-          if [ "$PKG" = "*" ]; then
+          if [[ "$PKG" == "*" ]]; then
             composer update --no-interaction --no-progress --no-install $FLAG
           else
             OLD_VER="$(composer show --locked "$PKG" 2>/dev/null | awk -F': ' '/^versions/{print $2}' | awk -F', ' '{print $1}' || true)"
             echo "old_version=$OLD_VER" >> "$GITHUB_OUTPUT"
 
-            if [ -n "$VER" ]; then
+            if [[ -n "$VER" ]]; then
               composer require "$PKG:$VER" --no-interaction --no-progress --no-install
               composer update "$PKG" --no-interaction --no-progress --no-install $FLAG
             else
@@ -174,29 +221,24 @@ jobs:
             echo "new_version=$NEW_VER" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Show changed files (debug)
-        working-directory: ${{ steps.workdir.outputs.path }}
-        run: |
-          git status --porcelain
-          git diff --name-status || true
-
       - name: Detect changes via checksums
         id: changed
         working-directory: ${{ steps.workdir.outputs.path }}
+        shell: bash
         run: |
           set -euo pipefail
           post_json_sha=absent
           post_lock_sha=absent
-          [ -f composer.json ] && post_json_sha=$(sha256sum composer.json | awk '{print $1}')
-          [ -f composer.lock ] && post_lock_sha=$(sha256sum composer.lock | awk '{print $1}')
+          [[ -f composer.json ]] && post_json_sha=$(sha256sum composer.json | awk '{print $1}')
+          [[ -f composer.lock ]] && post_lock_sha=$(sha256sum composer.lock | awk '{print $1}')
 
           has_changes=false
           changed_files=""
-          if [ "${{ steps.before.outputs.pre_composer_sha }}" != "$post_json_sha" ]; then
+          if [[ "${{ steps.before.outputs.pre_composer_sha }}" != "$post_json_sha" ]]; then
             has_changes=true
             changed_files="$changed_files composer.json"
           fi
-          if [ "${{ steps.before.outputs.pre_composer_lock_sha }}" != "$post_lock_sha" ]; then
+          if [[ "${{ steps.before.outputs.pre_composer_lock_sha }}" != "$post_lock_sha" ]]; then
             has_changes=true
             changed_files="$changed_files composer.lock"
           fi
@@ -206,34 +248,36 @@ jobs:
 
       - name: Compute PR metadata
         id: meta
+        if: ${{ inputs.target == 'pr' }}
         env:
           OLD: ${{ steps.update.outputs.old_version }}
           NEW: ${{ steps.update.outputs.new_version }}
           PKG: ${{ inputs.package }}
           IN_TITLE: ${{ inputs.pr-title }}
           IN_BODY: ${{ inputs.pr-body }}
+        shell: bash
         run: |
           set -euo pipefail
-          if [ -n "${IN_TITLE}" ]; then
+          if [[ -n "${IN_TITLE}" ]]; then
             TITLE="${IN_TITLE}"
           else
-            if [ "$PKG" = "*" ]; then
+            if [[ "$PKG" == "*" ]]; then
               TITLE="chore(composer): update all packages"
-            elif [ -n "${OLD}" ] && [ -n "${NEW}" ] && [ "${OLD}" != "${NEW}" ]; then
+            elif [[ -n "${OLD}" && -n "${NEW}" && "${OLD}" != "${NEW}" ]]; then
               TITLE="chore(composer): bump ${PKG} from ${OLD} to ${NEW}"
-            elif [ -n "${NEW}" ]; then
+            elif [[ -n "${NEW}" ]]; then
               TITLE="chore(composer): update ${PKG} to ${NEW}"
             else
               TITLE="chore(composer): update ${PKG}"
             fi
           fi
 
-          if [ -n "${IN_BODY}" ]; then
+          if [[ -n "${IN_BODY}" ]]; then
             BODY="${IN_BODY}"
           else
-            if [ "$PKG" = "*" ]; then
+            if [[ "$PKG" == "*" ]]; then
               BODY="This PR updates all Composer packages and refreshes composer.lock (no vendor install)."
-            elif [ -n "${OLD}" ] && [ -n "${NEW}" ] && [ "${OLD}" != "${NEW}" ]; then
+            elif [[ -n "${OLD}" && -n "${NEW}" && "${OLD}" != "${NEW}" ]]; then
               BODY="This PR updates ${PKG} from ${OLD} to ${NEW} and refreshes composer.lock (no vendor install)."
             else
               BODY="This PR updates the package constraint and refreshes composer.lock (no vendor install)."
@@ -249,26 +293,42 @@ jobs:
         working-directory: ${{ steps.workdir.outputs.path }}
         env:
           FORCE_PR: ${{ inputs['force-pr'] }}
+          TARGET: ${{ inputs.target }}
+        shell: bash
         run: |
           set -euo pipefail
           has_changes=${{ steps.changed.outputs.has_changes }}
 
-          if [ "$has_changes" = "true" ] || [ "$FORCE_PR" = "true" ]; then
+          if [[ "$has_changes" == "true" || ( "$TARGET" == "pr" && "$FORCE_PR" == "true" ) ]]; then
             git add composer.json composer.lock 2>/dev/null || true
-            git commit -m "${{ steps.meta.outputs.commit_message }}" || echo "Nothing to commit"
+            if [[ "$TARGET" == "pr" ]]; then
+              git commit -m "${{ steps.meta.outputs.commit_message }}" || echo "Nothing to commit"
+            else
+              # In inplace mode we still want a meaningful commit message
+              MSG="chore(composer): update ${{ inputs.package }}${{ inputs.version != '' && format(' to {0}', inputs.version) || '' }}"
+              git commit -m "$MSG" || echo "Nothing to commit"
+            fi
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
           else
             echo "No file checksum changes detected; skipping commit."
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Push branch
-        if: steps.commit.outputs.has_changes == 'true'
+      - name: Push (PR mode)
+        if: ${{ inputs.target == 'pr' && steps.commit.outputs.has_changes == 'true' }}
+        shell: bash
         run: |
           git push --set-upstream origin "${{ steps.branch.outputs.name }}"
 
-      - name: Open Pull Request (github-script)
-        if: steps.commit.outputs.has_changes == 'true'
+      - name: Push (inplace mode)
+        if: ${{ inputs.target != 'pr' && steps.commit.outputs.has_changes == 'true' }}
+        shell: bash
+        run: |
+          BR="${{ steps.ctx.outputs.current_branch }}"
+          git push origin "HEAD:$BR"
+
+      - name: Open Pull Request (PR mode)
+        if: ${{ inputs.target == 'pr' && steps.commit.outputs.has_changes == 'true' }}
         uses: actions/github-script@v7
         env:
           BASE: ${{ inputs['base-branch'] }}
