@@ -12,18 +12,13 @@ on:
         type: string
         required: false
         default: ""
-      base-branch:
-        description: "Base branch to open the PR against (when target=pr)"
-        type: string
-        required: false
-        default: "master"
       feature-branch:
         description: "Custom feature branch name (when target=pr). Leave blank to auto-generate."
         type: string
         required: false
         default: ""
       target:
-        description: "Where to apply the update: 'pr' (create branch & PR) or 'inplace' (push to the branch this workflow runs on)"
+        description: "Where to apply the update: 'pr' (create branch & PR) or 'inplace' (push to the current branch)"
         type: string
         required: false
         default: "pr"
@@ -71,21 +66,25 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Determine target branch context
+      - name: Determine triggering branch
         id: ctx
         shell: bash
         run: |
-          # Branch this workflow is running against (for 'inplace' mode)
-          # Prefer GITHUB_HEAD_REF on PRs, otherwise use GITHUB_REF_NAME
+          # Prefer GITHUB_HEAD_REF (for pull_request), else GITHUB_REF_NAME
           CUR="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
-          echo "current_branch=${CUR}" >> "$GITHUB_OUTPUT"
+          if [[ -z "$CUR" ]]; then
+            echo "Unable to resolve triggering branch." >&2
+            exit 1
+          fi
+          echo "current_branch=$CUR" >> "$GITHUB_OUTPUT"
+          echo "Operating against: $CUR"
 
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # In PR mode we start from base-branch; in inplace we check out the current branch
-          ref: ${{ inputs.target == 'pr' && inputs['base-branch'] || steps.ctx.outputs.current_branch }}
+          # For PR: base is the triggering branch; for inplace: we also operate on it
+          ref: ${{ steps.ctx.outputs.current_branch }}
 
       - name: Set up PHP (for Composer)
         uses: shivammathur/setup-php@v2
@@ -149,28 +148,30 @@ jobs:
           fi
           echo "name=$BR" >> "$GITHUB_OUTPUT"
 
-      - name: Create & switch to feature branch (PR mode)
+      - name: Configure Git identity
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Switch branch for PR mode
         if: ${{ inputs.target == 'pr' }}
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin "${{ inputs['base-branch'] }}" --prune
-          git checkout -B "${{ steps.branch.outputs.name }}" "origin/${{ inputs['base-branch'] }}"
+          BASE="${{ steps.ctx.outputs.current_branch }}"
+          git fetch origin "$BASE" --prune
+          git checkout -B "${{ steps.branch.outputs.name }}" "origin/$BASE"
 
-      - name: Ensure we are on the current branch (inplace mode)
+      - name: Ensure on triggering branch for inplace mode
         if: ${{ inputs.target != 'pr' }}
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           BR="${{ steps.ctx.outputs.current_branch }}"
           git fetch origin "$BR" --prune || true
-          # Checkout the branch by name (creates local branch tracking origin/BR if needed)
           git checkout -B "$BR" "origin/$BR" || git checkout -B "$BR"
-          echo "Operating inplace on branch: $BR"
+          echo "Operating inplace on: $BR"
 
       - name: Capture pre-update checksums
         id: before
@@ -304,7 +305,6 @@ jobs:
             if [[ "$TARGET" == "pr" ]]; then
               git commit -m "${{ steps.meta.outputs.commit_message }}" || echo "Nothing to commit"
             else
-              # In inplace mode we still want a meaningful commit message
               MSG="chore(composer): update ${{ inputs.package }}${{ inputs.version != '' && format(' to {0}', inputs.version) || '' }}"
               git commit -m "$MSG" || echo "Nothing to commit"
             fi
@@ -331,7 +331,7 @@ jobs:
         if: ${{ inputs.target == 'pr' && steps.commit.outputs.has_changes == 'true' }}
         uses: actions/github-script@v7
         env:
-          BASE: ${{ inputs['base-branch'] }}
+          BASE: ${{ steps.ctx.outputs.current_branch }}
           HEAD: ${{ steps.branch.outputs.name }}
           TITLE: ${{ steps.meta.outputs.title }}
           BODY: ${{ steps.meta.outputs.body }}
@@ -339,8 +339,8 @@ jobs:
           github-token: ${{ secrets.token || github.token }}
           script: |
             const { owner, repo } = context.repo;
-            const base = process.env.BASE;
-            const head = process.env.HEAD;
+            const base = process.env.BASE;   // detected triggering branch
+            const head = process.env.HEAD;   // feature branch we just pushed
             const title = process.env.TITLE;
             const body = process.env.BODY;
 
