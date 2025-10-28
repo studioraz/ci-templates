@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       package:
-        description: "Composer package (e.g. vendor/package)"
+        description: "Composer package (e.g. vendor/package or * for all)"
         type: string
         required: true
       version:
@@ -12,23 +12,28 @@ on:
         type: string
         required: false
         default: ""
-      base-branch:
-        description: "Base branch to open the PR against"
+      target:
+        description: "Apply via PR (create branch & PR) or inplace (push to current branch)"
+        type: choice
+        options: [pr, inplace]
+        default: pr
+      feature-branch:
+        description: "(PR mode) Custom feature branch name (leave blank to auto-generate)"
         type: string
         required: false
-        default: "master"
+        default: ""
       pr-title:
-        description: "Override PR title"
+        description: "(PR mode) Override PR title"
         type: string
         required: false
         default: ""
       pr-body:
-        description: "Override PR body"
+        description: "(PR mode) Override PR body"
         type: string
         required: false
         default: ""
       force-pr:
-        description: "Open PR even if only composer.json changed, but lock did not"
+        description: "(PR mode) Open PR even if only composer.json changed but lock did not"
         type: boolean
         required: false
         default: false
@@ -43,9 +48,11 @@ jobs:
     with:
       package: ${{ github.event.inputs.package }}
       version: ${{ github.event.inputs.version }}
-      base-branch: ${{ github.event.inputs['base-branch'] }}
+      target: ${{ github.event.inputs.target }}
+      feature-branch: ${{ github.event.inputs['feature-branch'] }}
       pr-title: ${{ github.event.inputs['pr-title'] }}
       pr-body: ${{ github.event.inputs['pr-body'] }}
       force-pr: ${{ github.event.inputs['force-pr'] == 'true' }}
       php-version: ${{ vars.PHP_VERSION || '8.3' }}
+      with-all-dependencies: ${{ vars.COMPOSER_WITH_ALL_DEPS || false }}
     secrets: inherit
