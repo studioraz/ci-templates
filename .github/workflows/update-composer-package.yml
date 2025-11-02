@@ -43,7 +43,7 @@ on:
         required: false
         default: "8.3"
       with-all-dependencies:
-        description: "If true, run composer update <pkg> --with-all-dependencies."
+        description: "If true, run with --with-all-dependencies."
         type: boolean
         required: false
         default: false
@@ -70,7 +70,6 @@ jobs:
         id: ctx
         shell: bash
         run: |
-          # Prefer GITHUB_HEAD_REF (for pull_request), else GITHUB_REF_NAME
           CUR="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
           if [[ -z "$CUR" ]]; then
             echo "Unable to resolve triggering branch." >&2
@@ -83,7 +82,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # For PR: base is the triggering branch; for inplace: we also operate on it
           ref: ${{ steps.ctx.outputs.current_branch }}
 
       - name: Set up PHP (for Composer)
@@ -132,7 +130,6 @@ jobs:
           if [[ -n "${{ inputs['feature-branch'] }}" ]]; then
             BR="${{ inputs['feature-branch'] }}"
           else
-            # Auto-generate from package/version
             if [[ "${{ inputs.package }}" == "*" ]]; then
               SAFE_PKG="all-packages"
             else
@@ -200,24 +197,27 @@ jobs:
           set -euo pipefail
 
           FLAG=""
-          if [[ "${WITH_ALL_DEPS}" == "true" ]]; then
-            FLAG="--with-all-dependencies"
-          fi
+          [[ "${WITH_ALL_DEPS}" == "true" ]] && FLAG="--with-all-dependencies"
 
           if [[ "$PKG" == "*" ]]; then
+            # Global update (lock refresh) without install
+            echo "Running: composer update $FLAG (no install)"
             composer update --no-interaction --no-progress --no-install $FLAG
           else
+            # Capture old version (best-effort) before the change
             OLD_VER="$(composer show --locked "$PKG" 2>/dev/null | awk -F': ' '/^versions/{print $2}' | awk -F', ' '{print $1}' || true)"
             echo "old_version=$OLD_VER" >> "$GITHUB_OUTPUT"
 
+            # Align constraint + update lock in one go (no install), WITH -W if requested
             if [[ -n "$VER" ]]; then
-              composer require "$PKG:$VER" --no-interaction --no-progress --no-install
-              composer update "$PKG" --no-interaction --no-progress --no-install $FLAG
+              echo "Running: composer require $PKG:$VER $FLAG (no install)"
+              composer require "$PKG:$VER" --no-interaction --no-progress --no-install $FLAG
             else
-              composer require "$PKG" --no-interaction --no-progress --no-install
-              composer update "$PKG" --no-interaction --no-progress --no-install $FLAG
+              echo "Running: composer require $PKG $FLAG (no install)"
+              composer require "$PKG"      --no-interaction --no-progress --no-install $FLAG
             fi
 
+            # Capture new version (best-effort)
             NEW_VER="$(composer show --locked "$PKG" 2>/dev/null | awk -F': ' '/^versions/{print $2}' | awk -F', ' '{print $1}' || true)"
             echo "new_version=$NEW_VER" >> "$GITHUB_OUTPUT"
           fi
@@ -339,8 +339,8 @@ jobs:
           github-token: ${{ secrets.token || github.token }}
           script: |
             const { owner, repo } = context.repo;
-            const base = process.env.BASE;   // detected triggering branch
-            const head = process.env.HEAD;   // feature branch we just pushed
+            const base = process.env.BASE;
+            const head = process.env.HEAD;
             const title = process.env.TITLE;
             const body = process.env.BODY;
 
