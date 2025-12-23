@@ -62,24 +62,6 @@ jobs:
         run: composer install --prefer-dist --no-progress --no-interaction --no-dev --optimize-autoloader
         working-directory: .
 
-      - name: Get Magento DI version
-        id: magento-di-version
-        run: echo "di_version=magento-di-$(bin/n98 studioraz:generate-di-version)" >> $GITHUB_OUTPUT
-        working-directory: .
-
-      - name: Cache Magento generated code
-        id: magento-di-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ./generated
-          key: ${{ steps.magento-di-version.outputs.di_version }}
-
-      - name: Compile Magento DI
-        if: ${{ !steps.magento-di-cache.outputs.cache-hit }}
-        run: bin/magento setup:di:compile --no-ansi --no-interaction
-        working-directory: .
-
       - name: Build
         uses: deployphp/action@v1
         with:
