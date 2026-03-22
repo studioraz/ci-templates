@@ -1,0 +1,21 @@
+name: Build & Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        description: Deployment environment
+        required: true
+        default: "staging"
+        options:
+          - staging
+          - production
+
+jobs:
+  call-build-and-deploy:
+    uses: studioraz/ci-templates/.github/workflows/build-and-deploy.yml@master
+    with:
+      environment: ${{ inputs.environment }}
+      php-version: "8.1"
+    secrets: inherit
