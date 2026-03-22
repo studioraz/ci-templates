@@ -6,6 +6,7 @@ on:
       environment:
         description: Deployment environment
         required: true
+        default: staging
         type: string
       php-version:
         description: PHP version
@@ -33,6 +34,12 @@ jobs:
             memory_limit=-1
             opcache.enable_cli=1
             opcache.jit_buffer_size=512M
+
+      - name: Install Deployer globally
+        run: |
+          composer global config repositories.private-packagist composer https://repo.packagist.com/studioraz/
+          composer config --global --auth http-basic.repo.packagist.com studioraz 4fa0c400855f83548edb1025eb20514eebf1b5cf9fd9c3d6560f4779b30a
+          composer global require studioraz/deployer-magento
 
       - name: Cache Composer vendor directory
         id: vendor-cache
@@ -62,7 +69,7 @@ jobs:
         run: composer install --prefer-dist --no-progress --no-interaction --no-dev --optimize-autoloader
         working-directory: .
 
-      - name: Cache Magento generated code
+      - name: Cache Magento-generated code
         id: magento-di-cache
         uses: actions/cache@v4
         with:
@@ -78,6 +85,7 @@ jobs:
       - name: Build
         uses: deployphp/action@v1
         with:
+          deployer-binary: /home/runner/.composer/vendor/bin/dep
           dep: artifact:build localhost
           private-key: ${{ secrets.SSH_CONNECTION_PRIVATE_KEY }}
           skip-ssh-setup: false
@@ -85,5 +93,6 @@ jobs:
       - name: Deploy
         uses: deployphp/action@v1
         with:
+          deployer-binary: /home/runner/.composer/vendor/bin/dep
           dep: artifact:deploy ${{ inputs.environment }}
           skip-ssh-setup: true
