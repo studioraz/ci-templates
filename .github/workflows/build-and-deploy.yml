@@ -39,8 +39,7 @@ jobs:
 
       - name: Install Deployer globally
         run: |
-          composer global config repositories.private-packagist composer https://repo.packagist.com/studioraz/
-          composer config --global --auth http-basic.repo.packagist.com studioraz 4fa0c400855f83548edb1025eb20514eebf1b5cf9fd9c3d6560f4779b30a
+          composer config --global repositories.packagist.org composer https://packagist.org
           composer global require studioraz/deployer-magento
 
       - name: Cache Composer vendor directory
