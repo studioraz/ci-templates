@@ -13,6 +13,16 @@ on:
         required: true
         default: '8.3'
         type: string
+      slack-webhook:
+        description: Default Slack Incoming Webhook URL (used for all non-production environments)
+        required: false
+        default: 'https://hooks.slack.com/services/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'
+        type: string
+      slack-webhook-production:
+        description: Slack Incoming Webhook URL for production deployments only
+        required: false
+        default: 'https://hooks.slack.com/services/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'
+        type: string
 
 jobs:
   build-and-deploy:
@@ -21,6 +31,57 @@ jobs:
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
+      - name: Resolve Slack webhook URL
+        run: |
+          if [[ "${{ inputs.environment }}" == "production" && -n "${{ inputs.slack-webhook-production }}" ]]; then
+            echo "SLACK_WEBHOOK=${{ inputs.slack-webhook-production }}" >> "$GITHUB_ENV"
+          else
+            echo "SLACK_WEBHOOK=${{ inputs.slack-webhook }}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Notify Slack — Started
+        uses: slackapi/slack-github-action@v2
+        with:
+          webhook: ${{ env.SLACK_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "attachments": [
+                {
+                  "color": "#2196F3",
+                  "blocks": [
+                    {
+                      "type": "header",
+                      "text": { "type": "plain_text", "text": ":rocket: ${{ github.repository }} — started", "emoji": true },
+                      "level": 3
+                    },
+                    {
+                       "type": "divider"
+                    },
+                    {
+                      "type": "section",
+                      "fields": [
+                        { "type": "mrkdwn", "text": "*Repository:*\n${{ github.repository }}" },
+                        { "type": "mrkdwn", "text": "*Ref:*\n`${{ github.ref_name }}`" },
+                        { "type": "mrkdwn", "text": "*Environment:*\n${{ inputs.environment }}" },
+                        { "type": "mrkdwn", "text": "*Triggered by:*\n${{ github.actor }}" }
+                      ]
+                    },
+                    {
+                      "type": "actions",
+                      "elements": [
+                        {
+                          "type": "button",
+                          "text": { "type": "plain_text", "text": "View Run", "emoji": true },
+                          "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+
       - name: Checkout code
         uses: actions/checkout@v6
 
@@ -97,3 +158,93 @@ jobs:
           deployer-binary: /home/runner/.composer/vendor/bin/dep
           dep: artifact:deploy ${{ inputs.environment }}
           skip-ssh-setup: true
+
+      - name: Notify Slack — Success
+        if: success()
+        uses: slackapi/slack-github-action@v2
+        with:
+          webhook: ${{ env.SLACK_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "attachments": [
+                {
+                  "color": "#2EB67D",
+                  "blocks": [
+                    {
+                      "type": "header",
+                      "text": { "type": "plain_text", "text": ":white_check_mark: ${{ github.repository }} - succeeded", "emoji": true }
+                    },
+                    {
+                       "type": "divider"
+                    },            
+                    {
+                      "type": "section",
+                      "fields": [
+                        { "type": "mrkdwn", "text": "*Repository:*\n${{ github.repository }}" },
+                        { "type": "mrkdwn", "text": "*Ref:*\n`${{ github.ref_name }}`" },
+                        { "type": "mrkdwn", "text": "*Environment:*\n${{ inputs.environment }}" },
+                        { "type": "mrkdwn", "text": "*Triggered by:*\n${{ github.actor }}" }
+                      ]
+                    },
+                    {
+                      "type": "actions",
+                      "elements": [
+                        {
+                          "type": "button",
+                          "text": { "type": "plain_text", "text": "View Run", "emoji": true },
+                          "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+
+      - name: Notify Slack — Failed
+        if: failure()
+        uses: slackapi/slack-github-action@v2
+        with:
+          webhook: ${{ env.SLACK_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "attachments": [
+                {
+                  "color": "#E01E5A",
+                  "blocks": [
+                    {
+                      "type": "header",
+                      "text": { "type": "plain_text", "text": ":x: ${{ github.repository }} — failed", "emoji": true }
+                    },
+                    {
+                       "type": "divider"
+                    },      
+                    {
+                      "type": "section",
+                      "fields": [
+                        { "type": "mrkdwn", "text": "*Repository:*\n${{ github.repository }}" },
+                        { "type": "mrkdwn", "text": "*Ref:*\n`${{ github.ref_name }}`" },
+                        { "type": "mrkdwn", "text": "*Environment:*\n${{ inputs.environment }}" },
+                        { "type": "mrkdwn", "text": "*Triggered by:*\n${{ github.actor }}" }
+                      ]
+                    },
+                    {
+                      "type": "section",
+                      "text": { "type": "mrkdwn", "text": ":warning: The workflow failed. <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Check the run logs> for error details." }
+                    },
+                    {
+                      "type": "actions",
+                      "elements": [
+                        {
+                          "type": "button",
+                          "text": { "type": "plain_text", "text": "View Run", "emoji": true },
+                          "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
