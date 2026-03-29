@@ -160,12 +160,12 @@ jobs:
             {
               "attachments": [
                 {
-                  "color": "#2196F3",
+                  "color": "#f7df05",
                   "blocks": [
                     {
                       "type": "header",
                       "text": { "type": "plain_text", "text": ":hammer: ${{ github.repository }} — build finished", "emoji": true },
-                      "level": 4
+                      "level": 3
                     }                                  
                   ]
                 }
