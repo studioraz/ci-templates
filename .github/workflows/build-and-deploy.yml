@@ -151,7 +151,7 @@ jobs:
           dep: artifact:build localhost
           private-key: ${{ secrets.SSH_CONNECTION_PRIVATE_KEY }}
           skip-ssh-setup: false
-      - name: Notify Slack — Started
+      - name: Notify Slack — Build Finished
         uses: slackapi/slack-github-action@v2
         with:
           webhook: ${{ env.SLACK_WEBHOOK }}
@@ -164,8 +164,7 @@ jobs:
                   "blocks": [
                     {
                       "type": "section",
-                      "text": { "type": "plain_text", "text": ":hammer: ${{ github.repository }} — build finished", "emoji": true },
-                      "level": 3
+                      "text": { "type": "plain_text", "text": ":hammer: ${{ github.repository }} — build finished", "emoji": true }
                     }                                  
                   ]
                 }
