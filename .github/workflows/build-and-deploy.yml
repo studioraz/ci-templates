@@ -163,9 +163,9 @@ jobs:
                   "color": "#2196F3",
                   "blocks": [
                     {
-                      "type": "section",
+                      "type": "header",
                       "text": { "type": "plain_text", "text": ":hammer: ${{ github.repository }} — build finished", "emoji": true },
-                      "level": 3
+                      "level": 4
                     }                                  
                   ]
                 }
