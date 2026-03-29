@@ -163,32 +163,10 @@ jobs:
                   "color": "#2196F3",
                   "blocks": [
                     {
-                      "type": "header",
-                      "text": { "type": "plain_text", "text": ":rocket: ${{ github.repository }} — build finished", "emoji": true },
-                      "level": 3
-                    },
-                    {
-                       "type": "divider"
-                    },
-                    {
                       "type": "section",
-                      "fields": [
-                        { "type": "mrkdwn", "text": "*Repository:*\n${{ github.repository }}" },
-                        { "type": "mrkdwn", "text": "*Ref:*\n`${{ github.ref_name }}`" },
-                        { "type": "mrkdwn", "text": "*Environment:*\n${{ inputs.environment }}" },
-                        { "type": "mrkdwn", "text": "*Triggered by:*\n${{ github.actor }}" }
-                      ]
-                    },
-                    {
-                      "type": "actions",
-                      "elements": [
-                        {
-                          "type": "button",
-                          "text": { "type": "plain_text", "text": "View Run", "emoji": true },
-                          "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-                        }
-                      ]
-                    }
+                      "text": { "type": "plain_text", "text": ":hammer: ${{ github.repository }} — build finished", "emoji": true },
+                      "level": 3
+                    }                                  
                   ]
                 }
               ]
