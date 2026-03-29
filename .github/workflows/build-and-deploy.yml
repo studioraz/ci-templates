@@ -164,7 +164,8 @@ jobs:
                   "blocks": [
                     {
                       "type": "section",
-                      "text": { "type": "plain_text", "text": ":hammer: ${{ github.repository }} — build finished", "emoji": true }
+                      "text": { "type": "plain_text", "text": ":hammer: ${{ github.repository }} — build finished", "emoji": true },
+                      "level": 3
                     }                                  
                   ]
                 }
@@ -191,29 +192,8 @@ jobs:
                   "blocks": [
                     {
                       "type": "header",
-                      "text": { "type": "plain_text", "text": ":white_check_mark: ${{ github.repository }} - deploy finished", "emoji": true }
-                    },
-                    {
-                       "type": "divider"
-                    },            
-                    {
-                      "type": "section",
-                      "fields": [
-                        { "type": "mrkdwn", "text": "*Repository:*\n${{ github.repository }}" },
-                        { "type": "mrkdwn", "text": "*Ref:*\n`${{ github.ref_name }}`" },
-                        { "type": "mrkdwn", "text": "*Environment:*\n${{ inputs.environment }}" },
-                        { "type": "mrkdwn", "text": "*Triggered by:*\n${{ github.actor }}" }
-                      ]
-                    },
-                    {
-                      "type": "actions",
-                      "elements": [
-                        {
-                          "type": "button",
-                          "text": { "type": "plain_text", "text": "View Run", "emoji": true },
-                          "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-                        }
-                      ]
+                      "text": { "type": "plain_text", "text": ":white_check_mark: ${{ github.repository }} - deploy finished", "emoji": true },
+                      "level": 3
                     }
                   ]
                 }
@@ -234,20 +214,12 @@ jobs:
                   "blocks": [
                     {
                       "type": "header",
-                      "text": { "type": "plain_text", "text": ":x: ${{ github.repository }} — deploy failed", "emoji": true }
+                      "text": { "type": "plain_text", "text": ":x: ${{ github.repository }} — deploy failed", "emoji": true },
+                      "level": 3
                     },
                     {
                        "type": "divider"
                     },      
-                    {
-                      "type": "section",
-                      "fields": [
-                        { "type": "mrkdwn", "text": "*Repository:*\n${{ github.repository }}" },
-                        { "type": "mrkdwn", "text": "*Ref:*\n`${{ github.ref_name }}`" },
-                        { "type": "mrkdwn", "text": "*Environment:*\n${{ inputs.environment }}" },
-                        { "type": "mrkdwn", "text": "*Triggered by:*\n${{ github.actor }}" }
-                      ]
-                    },
                     {
                       "type": "section",
                       "text": { "type": "mrkdwn", "text": ":warning: The workflow failed. <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Check the run logs> for error details." }
