@@ -1,0 +1,153 @@
+name: Initialize README & CHANGELOG Documentation
+
+on:
+  workflow_call:
+
+permissions:
+  contents: write
+  models: read
+  pull-requests: write
+
+jobs:
+  init:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout CI templates (for prompts)
+        uses: actions/checkout@v4
+        with:
+          repository: studioraz/ci-templates
+          ref: master
+          path: .ci-templates
+          sparse-checkout: prompts
+
+      - name: Check if docs already exist
+        id: check
+        run: |
+          # If README has real content (not just the template placeholder) and CHANGELOG has entries, skip
+          if grep -q "^## Overview" README.md 2>/dev/null && grep -qE "^## \[" CHANGELOG.md 2>/dev/null; then
+            echo "Documentation already exists. Delete generated content first to re-initialize."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Resolve latest release
+        if: steps.check.outputs.exists == 'false'
+        id: release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              const { data } = await github.rest.repos.getLatestRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+              });
+              core.setOutput('tag', data.tag_name);
+              core.setOutput('url', data.html_url);
+              core.setOutput('date', data.published_at.split('T')[0]);
+              console.log(`Latest release: ${data.tag_name}`);
+            } catch (e) {
+              const tags = await github.rest.repos.listTags({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                per_page: 1,
+              });
+              if (tags.data.length > 0) {
+                const tag = tags.data[0].name;
+                core.setOutput('tag', tag);
+                core.setOutput('url', `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/tag/${tag}`);
+                core.setOutput('date', new Date().toISOString().split('T')[0]);
+                console.log(`No release found, using latest tag: ${tag}`);
+              } else {
+                core.setOutput('tag', '');
+                core.setOutput('url', '');
+                core.setOutput('date', new Date().toISOString().split('T')[0]);
+                console.log('No releases or tags found');
+              }
+            }
+
+      - name: Prepare prompt
+        if: steps.check.outputs.exists == 'false'
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          URL: ${{ steps.release.outputs.url }}
+          DATE: ${{ steps.release.outputs.date }}
+          REPO: ${{ github.repository }}
+        run: |
+          find . -type f \( -name "*.php" -o -name "*.xml" -o -name "*.phtml" \) \
+            | grep -v vendor | grep -v '.git' | grep -v '.ci-templates' | sort > /tmp/file_tree.txt
+
+          cat composer.json > /tmp/composer.txt 2>/dev/null || echo "No composer.json" > /tmp/composer.txt
+          cat README.md > /tmp/readme.txt 2>/dev/null || echo "No README.md" > /tmp/readme.txt
+
+          grep -rn --include="*.php" \
+            -E '(^|\s)(class|interface|trait|public function|protected function|const )\s' \
+            --exclude-dir=vendor --exclude-dir=.ci-templates \
+            | head -80 > /tmp/signatures.txt
+
+          find . -path "*/etc/module.xml" -not -path "./.ci-templates/*" -exec cat {} + 2>/dev/null > /tmp/module_xml.txt || true
+
+          find . \( -path "*/etc/config.xml" -o -path "*/etc/adminhtml/system.xml" \) \
+            -not -path "./.ci-templates/*" \
+            -exec cat {} + 2>/dev/null > /tmp/config_xml.txt || true
+
+          sed -e "s|@@TAG@@|$TAG|g" \
+              -e "s|@@URL@@|$URL|g" \
+              -e "s|@@DATE@@|$DATE|g" \
+              -e "s|@@REPO@@|$REPO|g" \
+              .ci-templates/prompts/init-docs.md | \
+          awk '
+            /@@COMPOSER_JSON@@/ { system("cat /tmp/composer.txt"); next }
+            /@@CURRENT_README@@/ { system("cat /tmp/readme.txt"); next }
+            /@@MODULE_XML@@/ { system("cat /tmp/module_xml.txt"); next }
+            /@@CONFIG_XML@@/ { system("cat /tmp/config_xml.txt"); next }
+            /@@FILE_TREE@@/ { system("cat /tmp/file_tree.txt"); next }
+            /@@SIGNATURES@@/ { system("cat /tmp/signatures.txt"); next }
+            { print }
+          ' > /tmp/prompt.txt
+
+      - name: Generate initial documentation
+        if: steps.check.outputs.exists == 'false'
+        id: ai
+        uses: actions/ai-inference@v1
+        with:
+          prompt-file: /tmp/prompt.txt
+          model: openai/gpt-5o
+
+      - name: Write documentation files
+        if: steps.check.outputs.exists == 'false'
+        env:
+          AI_RESPONSE_FILE: ${{ steps.ai.outputs.response-file }}
+        run: |
+          # Strip markdown code fences if present, then parse JSON
+          sed '/^```/d' "$AI_RESPONSE_FILE" > /tmp/clean_response.json
+
+          jq -r '.readme_md' /tmp/clean_response.json > README.md
+          jq -r '.changelog_md' /tmp/clean_response.json > CHANGELOG.md
+
+          echo "Generated README.md ($(wc -c < README.md) bytes)"
+          echo "Generated CHANGELOG.md ($(wc -c < CHANGELOG.md) bytes)"
+
+      - name: Clean up CI templates checkout
+        if: steps.check.outputs.exists == 'false'
+        run: rm -rf .ci-templates
+
+      - name: Create pull request
+        if: steps.check.outputs.exists == 'false'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: docs/init-readme-changelog
+          title: "docs: initial README & CHANGELOG documentation"
+          body: |
+            Auto-generated initial documentation using `actions/ai-inference`.
+
+            **Please review before merging:**
+            - [ ] `README.md` — module overview, features, configuration
+            - [ ] `CHANGELOG.md` — initial release entry
+          labels: documentation
+          commit-message: "docs: generate initial README & CHANGELOG documentation"

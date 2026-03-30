@@ -1,0 +1,14 @@
+name: Initialize Documentation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  models: read
+  pull-requests: write
+
+jobs:
+  call-init-docs:
+    uses: studioraz/ci-templates/.github/workflows/init-docs.yml@master
+    secrets: inherit
