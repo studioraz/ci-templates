@@ -3,7 +3,7 @@ name: Update README & CHANGELOG Documentation
 on:
   workflow_call:
     secrets:
-      token:
+      ci-templates-token:
         required: false
         description: "PAT with read access to studioraz/ci-templates (optional; defaults to GITHUB_TOKEN)"
     inputs:
@@ -40,7 +40,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: studioraz/ci-templates
-          token: ${{ secrets.token || github.token }}
+          token: ${{ secrets.ci-templates-token || github.token }}
           ref: master
           path: .ci-templates
           sparse-checkout: prompts
