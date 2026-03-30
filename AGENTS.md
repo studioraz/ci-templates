@@ -11,6 +11,7 @@ A shared library of **reusable GitHub Actions workflows** for Studioraz Magento 
 |-----------|------|
 | `.github/workflows/` | **Canonical reusable workflows** — triggered only via `workflow_call` |
 | `action-caller/` | **Caller templates** — copy these into consumer repos to wire up the reusable workflows |
+| `prompts/` | **AI system prompts** — used by documentation workflows (`init-docs`, `update-docs`) |
 | `copilot/` | AI/Copilot instruction files for consumer Magento 2 projects (not for this repo itself) |
 
 Consumer repos call templates like:
@@ -40,6 +41,24 @@ Updates a Composer package and either opens a PR or pushes inplace.
 - Auto-detects working directory (`./` then `./src/`) and Composer auth (`./auth.json` or `./src/auth.json`)
 - Uses checksum diffing (not `git status`) to detect real changes before committing
 
+### `init-docs.yml`
+Generates initial `README.md` and `CHANGELOG.md` for a Magento 2 module using AI inference.
+- Trigger: `workflow_call` (no inputs required)
+- Steps: Dual checkout (caller repo + ci-templates for prompts) → collect repo context (file tree, signatures, config XML) → AI generates docs → create PR
+- Creates branch `docs/init-readme-changelog` with the generated files
+- Skips if README already has an "## Overview" section and CHANGELOG has version entries
+- System prompt: `prompts/init-docs.md`
+- Required permissions: `contents: write`, `models: read`, `pull-requests: write`
+
+### `update-docs.yml`
+Updates `README.md` and `CHANGELOG.md` on each release using AI inference.
+- Trigger: `workflow_call`
+- Inputs: `tag` (required), `url` (optional), `date` (optional, defaults to today)
+- Steps: Dual checkout (caller repo + ci-templates for prompts) → diff between previous and current tag → AI generates changelog entry + optional README update → commit directly to master
+- CHANGELOG follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) format; new entries are inserted after `## [Unreleased]`
+- System prompt: `prompts/update-docs.md`
+- Required permissions: `contents: write`, `models: read`
+
 ---
 
 ## Key Conventions
@@ -49,6 +68,7 @@ Updates a Composer package and either opens a PR or pushes inplace.
 - **Caller files pass `php-version` explicitly** — `action-caller/build-and-deploy.yml` hardcodes `"8.1"`, while `update-composer-package.yml` reads `vars.PHP_VERSION || '8.3'`. Always set `PHP_VERSION` as a GitHub Actions variable in consumer repos.
 - **Permissions** — `update-composer-package.yml` requires `contents: write` and `pull-requests: write`; declare these in the caller file.
 - **No test suite** in this repo — validate changes by tracing input/output step IDs and `$GITHUB_OUTPUT` writes manually.
+- **AI prompts centralized** — `prompts/` contains system prompts shared across all consumer repos. Reusable doc workflows check out this repo via sparse checkout to access them at runtime.
 
 ---
 

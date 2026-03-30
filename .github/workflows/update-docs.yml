@@ -1,0 +1,223 @@
+name: Update README & CHANGELOG Documentation
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v1.2.0)"
+        required: true
+        type: string
+      url:
+        description: "Release URL (auto-generated if empty)"
+        required: false
+        type: string
+        default: ""
+      date:
+        description: "Release date YYYY-MM-DD (defaults to today)"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+  models: read
+
+jobs:
+  update-docs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: master
+
+      - name: Checkout CI templates (for prompts)
+        uses: actions/checkout@v4
+        with:
+          repository: studioraz/ci-templates
+          ref: master
+          path: .ci-templates
+          sparse-checkout: prompts
+
+      - name: Resolve release context
+        id: release
+        run: |
+          TAG="${{ inputs.tag }}"
+          URL="${{ inputs.url }}"
+          DATE="${{ inputs.date }}"
+
+          if [ -z "$URL" ]; then
+            URL="https://github.com/${{ github.repository }}/releases/tag/$TAG"
+          fi
+          if [ -z "$DATE" ]; then
+            DATE=$(date +%Y-%m-%d)
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "date=$DATE" >> "$GITHUB_OUTPUT"
+
+      - name: Get diff from previous tag
+        run: |
+          TAG="${{ steps.release.outputs.tag }}"
+
+          # Find the previous tag (by version sort, excluding the current one)
+          PREV_TAG=$(git tag --sort=-v:refname | grep -v "^${TAG}$" | head -1)
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "No previous tag found — diffing against initial commit"
+            PREV_TAG=$(git rev-list --max-parents=0 HEAD)
+          fi
+
+          echo "prev_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
+          echo "Diffing $PREV_TAG..$TAG"
+
+          # All changed files (not just source — includes config, docs, workflows)
+          git diff "$PREV_TAG" "$TAG" --name-status | head -200 > /tmp/changed_files.txt
+
+          # Full diff
+          git diff "$PREV_TAG" "$TAG" -U3 | head -c 100000 > /tmp/release.diff
+
+          # If diff is empty, use stat summary
+          if [ ! -s /tmp/release.diff ]; then
+            git diff "$PREV_TAG" "$TAG" --stat | head -c 100000 > /tmp/release.diff
+          fi
+
+          echo "Diff size: $(wc -c < /tmp/release.diff) bytes"
+          echo "Changed files: $(wc -l < /tmp/changed_files.txt)"
+
+      - name: Prepare current documentation content
+        run: |
+          if [ -f CHANGELOG.md ]; then
+            cp CHANGELOG.md /tmp/current_changelog.md
+          else
+            {
+              echo "# Changelog"
+              echo ""
+              echo "All notable changes to this project will be documented in this file."
+              echo ""
+              echo "The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),"
+              echo "and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)."
+              echo ""
+              echo "## [Unreleased]"
+            } > /tmp/current_changelog.md
+          fi
+
+          if [ -f README.md ]; then
+            cp README.md /tmp/current_readme.md
+          else
+            echo "" > /tmp/current_readme.md
+          fi
+
+      - name: Render prompt
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          URL: ${{ steps.release.outputs.url }}
+          DATE: ${{ steps.release.outputs.date }}
+          REPO: ${{ github.repository }}
+        run: |
+          sed -e "s|@@TAG@@|$TAG|g" \
+              -e "s|@@URL@@|$URL|g" \
+              -e "s|@@DATE@@|$DATE|g" \
+              -e "s|@@REPO@@|$REPO|g" \
+              .ci-templates/prompts/update-docs.md | \
+          awk '
+            /@@CHANGED_FILES@@/ { system("cat /tmp/changed_files.txt"); next }
+            /@@DIFF@@/ { system("cat /tmp/release.diff"); next }
+            /@@CURRENT_CHANGELOG@@/ { system("cat /tmp/current_changelog.md"); next }
+            /@@CURRENT_README@@/ { system("cat /tmp/current_readme.md"); next }
+            { print }
+          ' > /tmp/prompt.txt
+
+          echo "Prompt size: $(wc -c < /tmp/prompt.txt) bytes"
+
+      - name: Generate documentation update
+        id: ai
+        uses: actions/ai-inference@v1
+        with:
+          prompt-file: /tmp/prompt.txt
+          model: openai/gpt-5o
+
+      - name: Apply documentation changes
+        env:
+          AI_RESPONSE_FILE: ${{ steps.ai.outputs.response-file }}
+        run: |
+          # Strip markdown code fences if present, then parse JSON
+          sed '/^```/d' "$AI_RESPONSE_FILE" > /tmp/clean_response.json
+
+          # Extract the new changelog entry (includes entry block + link reference line)
+          ENTRY=$(jq -r '.changelog_entry' /tmp/clean_response.json)
+
+          # Split entry into the version block and the link reference
+          ENTRY_BLOCK=$(echo "$ENTRY" | sed '/^\[.*\]: http/d')
+          LINK_REF=$(echo "$ENTRY" | grep '^\[.*\]: http' || true)
+
+          # Update CHANGELOG.md: insert new entry after ## [Unreleased]
+          if [ -f CHANGELOG.md ] && grep -q "## \[Unreleased\]" CHANGELOG.md; then
+            {
+              # Everything up to and including ## [Unreleased]
+              sed '/## \[Unreleased\]/q' CHANGELOG.md
+              echo ""
+              echo "$ENTRY_BLOCK"
+              echo ""
+              # Everything after ## [Unreleased] (skip the line itself)
+              sed '1,/## \[Unreleased\]/d' CHANGELOG.md
+            } > /tmp/updated_changelog.md
+
+            # Insert link reference before the last blank lines / existing references
+            if [ -n "$LINK_REF" ]; then
+              # Add link ref after the last existing link reference, or at the end
+              if grep -q '^\[.*\]: http' /tmp/updated_changelog.md; then
+                # Find the first link reference line and insert before it
+                FIRST_REF_LINE=$(grep -n '^\[.*\]: http' /tmp/updated_changelog.md | head -1 | cut -d: -f1)
+                sed "${FIRST_REF_LINE}i\\
+${LINK_REF}" /tmp/updated_changelog.md > /tmp/updated_changelog2.md
+                mv /tmp/updated_changelog2.md /tmp/updated_changelog.md
+              else
+                echo "" >> /tmp/updated_changelog.md
+                echo "$LINK_REF" >> /tmp/updated_changelog.md
+              fi
+            fi
+
+            mv /tmp/updated_changelog.md CHANGELOG.md
+          else
+            # No existing CHANGELOG with [Unreleased] — create fresh
+            {
+              echo "# Changelog"
+              echo ""
+              echo "All notable changes to this project will be documented in this file."
+              echo ""
+              echo "The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),"
+              echo "and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)."
+              echo ""
+              echo "## [Unreleased]"
+              echo ""
+              echo "$ENTRY_BLOCK"
+            } > CHANGELOG.md
+            if [ -n "$LINK_REF" ]; then
+              echo "" >> CHANGELOG.md
+              echo "$LINK_REF" >> CHANGELOG.md
+            fi
+          fi
+
+          # Update README.md only if the AI returned content
+          README_LENGTH=$(jq -r '.readme_md | length' /tmp/clean_response.json)
+          if [ "$README_LENGTH" -gt 0 ]; then
+            jq -r '.readme_md' /tmp/clean_response.json > README.md
+          fi
+
+      - name: Clean up CI templates checkout
+        run: rm -rf .ci-templates
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md CHANGELOG.md
+          if git diff --cached --quiet; then
+            echo "No documentation changes to commit"
+          else
+            git commit -m "docs: update documentation for ${{ steps.release.outputs.tag }}"
+            git push origin HEAD:master
+          fi
