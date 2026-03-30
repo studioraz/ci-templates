@@ -2,6 +2,10 @@ name: Initialize README & CHANGELOG Documentation
 
 on:
   workflow_call:
+    secrets:
+      token:
+        required: false
+        description: "PAT with read access to studioraz/ci-templates (optional; defaults to GITHUB_TOKEN)"
 
 permissions:
   contents: write
@@ -21,6 +25,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: studioraz/ci-templates
+          token: ${{ secrets.token || github.token }}
           ref: master
           path: .ci-templates
           sparse-checkout: prompts
