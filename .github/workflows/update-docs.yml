@@ -2,10 +2,6 @@ name: Update README & CHANGELOG Documentation
 
 on:
   workflow_call:
-    secrets:
-      ci-templates-token:
-        required: false
-        description: "PAT with read access to studioraz/ci-templates (optional; defaults to GITHUB_TOKEN)"
     inputs:
       tag:
         description: "Release tag (e.g. v1.2.0)"
@@ -36,14 +32,14 @@ jobs:
           fetch-depth: 0
           ref: master
 
-      - name: Checkout CI templates (for prompts)
-        uses: actions/checkout@v4
-        with:
-          repository: studioraz/ci-templates
-          token: ${{ secrets.ci-templates-token || github.token }}
-          ref: master
-          path: .ci-templates
-          sparse-checkout: prompts
+      - name: Fetch prompt template
+        env:
+          GH_TOKEN: ${{ secrets.CI_TEMPLATES_ACCESS_TOKEN }}
+        run: |
+          gh api \
+            -H "Accept: application/vnd.github.raw" \
+            /repos/studioraz/ci-templates/contents/prompts/update-docs.md?ref=master \
+            > /tmp/update-docs.md
 
       - name: Resolve release context
         id: release
@@ -126,7 +122,7 @@ jobs:
               -e "s|@@URL@@|$URL|g" \
               -e "s|@@DATE@@|$DATE|g" \
               -e "s|@@REPO@@|$REPO|g" \
-              .ci-templates/prompts/update-docs.md | \
+              /tmp/update-docs.md | \
           awk '
             /@@CHANGED_FILES@@/ { system("cat /tmp/changed_files.txt"); next }
             /@@DIFF@@/ { system("cat /tmp/release.diff"); next }
@@ -142,7 +138,7 @@ jobs:
         uses: actions/ai-inference@v1
         with:
           prompt-file: /tmp/prompt.txt
-          model: openai/gpt-5o
+          model: openai/gpt-5
 
       - name: Apply documentation changes
         env:
@@ -211,9 +207,6 @@ ${LINK_REF}" /tmp/updated_changelog.md > /tmp/updated_changelog2.md
           if [ "$README_LENGTH" -gt 0 ]; then
             jq -r '.readme_md' /tmp/clean_response.json > README.md
           fi
-
-      - name: Clean up CI templates checkout
-        run: rm -rf .ci-templates
 
       - name: Commit and push
         run: |

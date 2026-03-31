@@ -117,7 +117,7 @@ jobs:
         uses: actions/ai-inference@v1
         with:
           prompt-file: /tmp/prompt.txt
-          model: openai/gpt-5o
+          model: openai/gpt-5
 
       - name: Write documentation files
         if: steps.check.outputs.exists == 'false'
