@@ -2,10 +2,6 @@ name: Initialize README & CHANGELOG Documentation
 
 on:
   workflow_call:
-    secrets:
-      ci-templates-token:
-        required: false
-        description: "PAT with read access to studioraz/ci-templates (optional; defaults to GITHUB_TOKEN)"
 
 permissions:
   contents: write
@@ -21,14 +17,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Checkout CI templates (for prompts)
-        uses: actions/checkout@v4
-        with:
-          repository: studioraz/ci-templates
-          token: ${{ secrets.ci-templates-token || github.token }}
-          ref: master
-          path: .ci-templates
-          sparse-checkout: prompts
+      - name: Fetch prompt template
+        env:
+          GH_TOKEN: ${{ secrets.CI_TEMPLATES_ACCESS_TOKEN }}
+        run: |
+          gh api \
+            -H "Accept: application/vnd.github.raw" \
+            /repos/studioraz/ci-templates/contents/prompts/init-docs.md?ref=master \
+            > /tmp/init-docs.md
 
       - name: Check if docs already exist
         id: check
@@ -85,27 +81,26 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           find . -type f \( -name "*.php" -o -name "*.xml" -o -name "*.phtml" \) \
-            | grep -v vendor | grep -v '.git' | grep -v '.ci-templates' | sort > /tmp/file_tree.txt
+            | grep -v vendor | grep -v '.git' | sort > /tmp/file_tree.txt
 
           cat composer.json > /tmp/composer.txt 2>/dev/null || echo "No composer.json" > /tmp/composer.txt
           cat README.md > /tmp/readme.txt 2>/dev/null || echo "No README.md" > /tmp/readme.txt
 
           grep -rn --include="*.php" \
             -E '(^|\s)(class|interface|trait|public function|protected function|const )\s' \
-            --exclude-dir=vendor --exclude-dir=.ci-templates \
+            --exclude-dir=vendor \
             | head -80 > /tmp/signatures.txt
 
-          find . -path "*/etc/module.xml" -not -path "./.ci-templates/*" -exec cat {} + 2>/dev/null > /tmp/module_xml.txt || true
+          find . -path "*/etc/module.xml" -exec cat {} + 2>/dev/null > /tmp/module_xml.txt || true
 
           find . \( -path "*/etc/config.xml" -o -path "*/etc/adminhtml/system.xml" \) \
-            -not -path "./.ci-templates/*" \
             -exec cat {} + 2>/dev/null > /tmp/config_xml.txt || true
 
           sed -e "s|@@TAG@@|$TAG|g" \
               -e "s|@@URL@@|$URL|g" \
               -e "s|@@DATE@@|$DATE|g" \
               -e "s|@@REPO@@|$REPO|g" \
-              .ci-templates/prompts/init-docs.md | \
+              /tmp/init-docs.md | \
           awk '
             /@@COMPOSER_JSON@@/ { system("cat /tmp/composer.txt"); next }
             /@@CURRENT_README@@/ { system("cat /tmp/readme.txt"); next }
@@ -137,10 +132,6 @@ jobs:
 
           echo "Generated README.md ($(wc -c < README.md) bytes)"
           echo "Generated CHANGELOG.md ($(wc -c < CHANGELOG.md) bytes)"
-
-      - name: Clean up CI templates checkout
-        if: steps.check.outputs.exists == 'false'
-        run: rm -rf .ci-templates
 
       - name: Create pull request
         if: steps.check.outputs.exists == 'false'
