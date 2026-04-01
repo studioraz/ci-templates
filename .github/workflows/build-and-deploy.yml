@@ -13,16 +13,6 @@ on:
         required: true
         default: '8.3'
         type: string
-      slack-webhook:
-        description: Default Slack Incoming Webhook URL (used for all non-production environments)
-        required: false
-        default: 'https://hooks.slack.com/services/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'
-        type: string
-      slack-webhook-production:
-        description: Slack Incoming Webhook URL for production deployments only
-        required: false
-        default: 'https://hooks.slack.com/services/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'
-        type: string
 
 jobs:
   build-and-deploy:
@@ -31,10 +21,10 @@ jobs:
     steps:
       - name: Resolve Slack webhook URL
         run: |
-          if [[ "${{ inputs.environment }}" == "production" && -n "${{ inputs.slack-webhook-production }}" ]]; then
-            echo "SLACK_WEBHOOK=${{ inputs.slack-webhook-production }}" >> "$GITHUB_ENV"
+          if [[ "${{ inputs.environment }}" == "production" && -n "${{ vars.SLACK_WEBHOOK_DEPLOY_PRODUCTION }}" ]]; then
+            echo "SLACK_WEBHOOK=${{ vars.SLACK_WEBHOOK_DEPLOY_PRODUCTION }}" >> "$GITHUB_ENV"
           else
-            echo "SLACK_WEBHOOK=${{ inputs.slack-webhook }}" >> "$GITHUB_ENV"
+            echo "SLACK_WEBHOOK=${{ vars.SLACK_WEBHOOK_DEPLOY_STAGING }}" >> "$GITHUB_ENV"
           fi
 
       - name: Notify Slack — Started
