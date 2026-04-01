@@ -40,7 +40,7 @@ jobs:
           fi
 
       - name: Notify Slack — Started
-        uses: slackapi/slack-github-action@v2
+        uses: slackapi/slack-github-action@v3
         with:
           webhook: ${{ env.SLACK_WEBHOOK }}
           webhook-type: incoming-webhook
@@ -152,7 +152,7 @@ jobs:
           private-key: ${{ secrets.SSH_CONNECTION_PRIVATE_KEY }}
           skip-ssh-setup: false
       - name: Notify Slack — Build Finished
-        uses: slackapi/slack-github-action@v2
+        uses: slackapi/slack-github-action@v3
         with:
           webhook: ${{ env.SLACK_WEBHOOK }}
           webhook-type: incoming-webhook
@@ -180,7 +180,7 @@ jobs:
 
       - name: Notify Slack — Success
         if: success()
-        uses: slackapi/slack-github-action@v2
+        uses: slackapi/slack-github-action@v3
         with:
           webhook: ${{ env.SLACK_WEBHOOK }}
           webhook-type: incoming-webhook
@@ -202,7 +202,7 @@ jobs:
 
       - name: Notify Slack — Failed
         if: failure()
-        uses: slackapi/slack-github-action@v2
+        uses: slackapi/slack-github-action@v3
         with:
           webhook: ${{ env.SLACK_WEBHOOK }}
           webhook-type: incoming-webhook
