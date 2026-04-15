@@ -23,7 +23,7 @@ jobs:
         run: |
           gh api \
             -H "Accept: application/vnd.github.raw" \
-            /repos/studioraz/ci-templates/contents/prompts/init-docs.md?ref=documentation-wokflow \
+            /repos/studioraz/ci-templates/contents/prompts/init-docs.md?ref=master \
             > /tmp/init-docs.md
 
       - name: Check if docs already exist
