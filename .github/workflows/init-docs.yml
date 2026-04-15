@@ -130,18 +130,28 @@ jobs:
 
           echo "AI response size: ${BYTES} bytes across ${LINES} lines"
 
-          for marker in \
-            '<<<README_START>>>' \
-            '<<<README_END>>>' \
-            '<<<CHANGELOG_START>>>' \
-            '<<<CHANGELOG_END>>>'
-          do
-            if grep -Fq "$marker" "$AI_RESPONSE_FILE"; then
-              echo "Found marker: $marker"
-            else
-              echo "::warning::Missing marker: $marker"
-            fi
-          done
+          sed '/^```/d' "$AI_RESPONSE_FILE" > /tmp/clean_response.json
+
+          if ! jq empty /tmp/clean_response.json >/dev/null 2>&1; then
+            echo "::error::AI response is not valid JSON"
+            echo "--- raw response preview ---"
+            head -c 1000 "$AI_RESPONSE_FILE"
+            exit 1
+          fi
+
+          if ! jq -e '
+            type == "object" and
+            (keys | sort) == ["changelog_md", "readme_md"] and
+            (.readme_md | type) == "string" and
+            (.changelog_md | type) == "string"
+          ' /tmp/clean_response.json >/dev/null; then
+            echo "::error::AI response must be a JSON object with only readme_md and changelog_md string keys"
+            jq -C . /tmp/clean_response.json || true
+            exit 1
+          fi
+
+          echo "README length: $(jq -r '.readme_md | length' /tmp/clean_response.json) chars"
+          echo "CHANGELOG length: $(jq -r '.changelog_md | length' /tmp/clean_response.json) chars"
 
           if [ "$BYTES" -lt 1000 ]; then
             echo "::warning::AI response is unexpectedly short and may be truncated"
@@ -152,81 +162,20 @@ jobs:
         env:
           AI_RESPONSE_FILE: ${{ steps.ai.outputs.response-file }}
         run: |
-          python3 - <<'PYEOF'
-          import os, sys
+          sed '/^```/d' "$AI_RESPONSE_FILE" > /tmp/clean_response.json
 
-          response_file = os.environ["AI_RESPONSE_FILE"]
-          with open(response_file, "r", encoding="utf-8") as f:
-              raw = f.read()
+          jq -e '
+            type == "object" and
+            (keys | sort) == ["changelog_md", "readme_md"] and
+            (.readme_md | type) == "string" and
+            (.changelog_md | type) == "string"
+          ' /tmp/clean_response.json >/dev/null
 
-          # Normalize line endings
-          raw = raw.replace("\r\n", "\n").replace("\r", "\n").strip()
+          jq -r '.readme_md' /tmp/clean_response.json > README.md
+          jq -r '.changelog_md' /tmp/clean_response.json > CHANGELOG.md
 
-          # The AI response is usually plain text, but some models wrap it in a fence.
-          if raw.startswith("```"):
-              lines = raw.split("\n")
-              if lines:
-                  lines = lines[1:]
-              if lines and lines[-1].strip() == "```":
-                  lines = lines[:-1]
-              raw = "\n".join(lines)
-
-          lines = raw.split("\n")
-          print(f"AI response size after normalization: {len(raw.encode())} bytes across {len(lines)} lines")
-
-          def find_marker(marker, start=0):
-              for index in range(start, len(lines)):
-                  if lines[index].strip() == marker:
-                      return index
-              return -1
-
-          def fail(tag, text):
-              print(f"Error: could not extract {tag} block from AI response", file=sys.stderr)
-              print("--- full raw response preview ---", file=sys.stderr)
-              print(repr(text[:1000]), file=sys.stderr)
-              sys.exit(1)
-
-          def extract(tag, fallback_next_tag=None, allow_eof=False):
-              start_marker = f"<<<{tag}_START>>>"
-              end_marker = f"<<<{tag}_END>>>"
-
-              start_index = find_marker(start_marker)
-              if start_index == -1:
-                  fail(tag, raw)
-
-              end_index = find_marker(end_marker, start_index + 1)
-              if end_index == -1 and fallback_next_tag:
-                  fallback_index = find_marker(f"<<<{fallback_next_tag}_START>>>", start_index + 1)
-                  if fallback_index != -1:
-                      print(
-                          f"Warning: missing {end_marker}; using <<<{fallback_next_tag}_START>>> as the boundary",
-                          file=sys.stderr,
-                      )
-                      end_index = fallback_index
-
-              if end_index == -1 and allow_eof:
-                  print(f"Warning: missing {end_marker}; using end of response as the boundary", file=sys.stderr)
-                  end_index = len(lines)
-
-              if end_index == -1:
-                  fail(tag, raw)
-
-              content = "\n".join(lines[start_index + 1:end_index])
-              if content and not content.endswith("\n"):
-                  content += "\n"
-              return content
-
-          readme = extract("README", fallback_next_tag="CHANGELOG")
-          changelog = extract("CHANGELOG", allow_eof=True)
-
-          with open("README.md", "w", encoding="utf-8") as f:
-              f.write(readme)
-          with open("CHANGELOG.md", "w", encoding="utf-8") as f:
-              f.write(changelog)
-
-          print(f"Generated README.md ({len(readme.encode())} bytes)")
-          print(f"Generated CHANGELOG.md ({len(changelog.encode())} bytes)")
-          PYEOF
+          echo "Generated README.md ($(wc -c < README.md | tr -d ' ') bytes)"
+          echo "Generated CHANGELOG.md ($(wc -c < CHANGELOG.md | tr -d ' ') bytes)"
 
       - name: Create pull request
         if: steps.check.outputs.exists == 'false'
