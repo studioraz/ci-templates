@@ -131,16 +131,20 @@ jobs:
           with open(response_file, "r", encoding="utf-8") as f:
               raw = f.read()
 
+          # Normalize line endings
+          raw = raw.replace("\r\n", "\n").replace("\r", "\n")
+
           def extract(text, tag):
               m = re.search(rf"<<<{tag}_START>>>\n(.*?)<<<{tag}_END>>>", text, re.DOTALL)
               if not m:
                   print(f"Error: could not find {tag} block in AI response", file=sys.stderr)
-                  print("--- raw response (first 500 chars) ---", file=sys.stderr)
-                  print(text[:500], file=sys.stderr)
+                  # Print full response for diagnosis
+                  print("--- full raw response ---", file=sys.stderr)
+                  print(repr(text[:300]), file=sys.stderr)
                   sys.exit(1)
               return m.group(1)
 
-          readme   = extract(raw, "README")
+          readme    = extract(raw, "README")
           changelog = extract(raw, "CHANGELOG")
 
           with open("README.md", "w", encoding="utf-8") as f:
