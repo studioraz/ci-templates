@@ -124,14 +124,37 @@ jobs:
         env:
           AI_RESPONSE_FILE: ${{ steps.ai.outputs.response-file }}
         run: |
-          # Strip markdown code fences if present, then parse JSON
-          sed '/^```/d' "$AI_RESPONSE_FILE" > /tmp/clean_response.json
+          python3 - <<'PYEOF'
+          import os, sys, json, re
 
-          jq -r '.readme_md' /tmp/clean_response.json > README.md
-          jq -r '.changelog_md' /tmp/clean_response.json > CHANGELOG.md
+          response_file = os.environ["AI_RESPONSE_FILE"]
+          with open(response_file, "r", encoding="utf-8") as f:
+              raw = f.read().strip()
 
-          echo "Generated README.md ($(wc -c < README.md) bytes)"
-          echo "Generated CHANGELOG.md ($(wc -c < CHANGELOG.md) bytes)"
+          # Strip a single outer markdown code fence (```json ... ``` or ``` ... ```)
+          # Only remove the first and last fence lines, not inner ones
+          fence_re = re.compile(r"^```[^\n]*\n(.*)\n```$", re.DOTALL)
+          m = fence_re.match(raw)
+          if m:
+              raw = m.group(1).strip()
+
+          try:
+              data = json.loads(raw)
+          except json.JSONDecodeError as e:
+              print(f"JSON parse error: {e}", file=sys.stderr)
+              print("--- raw response (first 500 chars) ---", file=sys.stderr)
+              print(raw[:500], file=sys.stderr)
+              sys.exit(1)
+
+          for key, filename in [("readme_md", "README.md"), ("changelog_md", "CHANGELOG.md")]:
+              content = data.get(key, "")
+              if not content:
+                  print(f"Warning: '{key}' is empty in AI response", file=sys.stderr)
+              with open(filename, "w", encoding="utf-8") as f:
+                  f.write(content)
+              print(f"Generated {filename} ({len(content.encode())} bytes)")
+
+          PYEOF
 
       - name: Create pull request
         if: steps.check.outputs.exists == 'false'
