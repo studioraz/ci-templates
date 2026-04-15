@@ -133,7 +133,7 @@ jobs:
 
       - name: Generate documentation update
         id: ai
-        uses: actions/ai-inference@v1
+        uses: actions/ai-inference@v2
         with:
           prompt-file: /tmp/prompt.txt
           model: openai/gpt-5
