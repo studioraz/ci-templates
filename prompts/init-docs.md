@@ -115,13 +115,16 @@ Include link references at the bottom of the file.
 
 ## Response Format
 
-You MUST return a valid JSON object with exactly two keys and nothing else.
-Do not wrap it in markdown code fences. Output raw JSON only.
+Return your response using exactly these delimiters and nothing else.
+Do not add any text before or after.
 
-{
-  "readme_md": "The complete README.md file content",
-  "changelog_md": "The complete CHANGELOG.md file content"
-}
+<<<README_START>>>
+[The complete README.md content here]
+<<<README_END>>>
+
+<<<CHANGELOG_START>>>
+[The complete CHANGELOG.md content here]
+<<<CHANGELOG_END>>>
 
 ---
 
