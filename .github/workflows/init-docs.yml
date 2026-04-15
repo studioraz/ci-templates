@@ -118,6 +118,34 @@ jobs:
         with:
           prompt-file: /tmp/prompt.txt
           model: openai/gpt-4.1
+          max-completion-tokens: 30000
+
+      - name: Inspect AI response
+        if: steps.check.outputs.exists == 'false'
+        env:
+          AI_RESPONSE_FILE: ${{ steps.ai.outputs.response-file }}
+        run: |
+          BYTES=$(wc -c < "$AI_RESPONSE_FILE" | tr -d ' ')
+          LINES=$(wc -l < "$AI_RESPONSE_FILE" | tr -d ' ')
+
+          echo "AI response size: ${BYTES} bytes across ${LINES} lines"
+
+          for marker in \
+            '<<<README_START>>>' \
+            '<<<README_END>>>' \
+            '<<<CHANGELOG_START>>>' \
+            '<<<CHANGELOG_END>>>'
+          do
+            if grep -Fq "$marker" "$AI_RESPONSE_FILE"; then
+              echo "Found marker: $marker"
+            else
+              echo "::warning::Missing marker: $marker"
+            fi
+          done
+
+          if [ "$BYTES" -lt 1000 ]; then
+            echo "::warning::AI response is unexpectedly short and may be truncated"
+          fi
 
       - name: Write documentation files
         if: steps.check.outputs.exists == 'false'
@@ -125,27 +153,71 @@ jobs:
           AI_RESPONSE_FILE: ${{ steps.ai.outputs.response-file }}
         run: |
           python3 - <<'PYEOF'
-          import os, sys, re
+          import os, sys
 
           response_file = os.environ["AI_RESPONSE_FILE"]
           with open(response_file, "r", encoding="utf-8") as f:
               raw = f.read()
 
           # Normalize line endings
-          raw = raw.replace("\r\n", "\n").replace("\r", "\n")
+          raw = raw.replace("\r\n", "\n").replace("\r", "\n").strip()
 
-          def extract(text, tag):
-              m = re.search(rf"<<<{tag}_START>>>\n(.*?)<<<{tag}_END>>>", text, re.DOTALL)
-              if not m:
-                  print(f"Error: could not find {tag} block in AI response", file=sys.stderr)
-                  # Print full response for diagnosis
-                  print("--- full raw response ---", file=sys.stderr)
-                  print(repr(text[:300]), file=sys.stderr)
-                  sys.exit(1)
-              return m.group(1)
+          # The AI response is usually plain text, but some models wrap it in a fence.
+          if raw.startswith("```"):
+              lines = raw.split("\n")
+              if lines:
+                  lines = lines[1:]
+              if lines and lines[-1].strip() == "```":
+                  lines = lines[:-1]
+              raw = "\n".join(lines)
 
-          readme    = extract(raw, "README")
-          changelog = extract(raw, "CHANGELOG")
+          lines = raw.split("\n")
+          print(f"AI response size after normalization: {len(raw.encode())} bytes across {len(lines)} lines")
+
+          def find_marker(marker, start=0):
+              for index in range(start, len(lines)):
+                  if lines[index].strip() == marker:
+                      return index
+              return -1
+
+          def fail(tag, text):
+              print(f"Error: could not extract {tag} block from AI response", file=sys.stderr)
+              print("--- full raw response preview ---", file=sys.stderr)
+              print(repr(text[:1000]), file=sys.stderr)
+              sys.exit(1)
+
+          def extract(tag, fallback_next_tag=None, allow_eof=False):
+              start_marker = f"<<<{tag}_START>>>"
+              end_marker = f"<<<{tag}_END>>>"
+
+              start_index = find_marker(start_marker)
+              if start_index == -1:
+                  fail(tag, raw)
+
+              end_index = find_marker(end_marker, start_index + 1)
+              if end_index == -1 and fallback_next_tag:
+                  fallback_index = find_marker(f"<<<{fallback_next_tag}_START>>>", start_index + 1)
+                  if fallback_index != -1:
+                      print(
+                          f"Warning: missing {end_marker}; using <<<{fallback_next_tag}_START>>> as the boundary",
+                          file=sys.stderr,
+                      )
+                      end_index = fallback_index
+
+              if end_index == -1 and allow_eof:
+                  print(f"Warning: missing {end_marker}; using end of response as the boundary", file=sys.stderr)
+                  end_index = len(lines)
+
+              if end_index == -1:
+                  fail(tag, raw)
+
+              content = "\n".join(lines[start_index + 1:end_index])
+              if content and not content.endswith("\n"):
+                  content += "\n"
+              return content
+
+          readme = extract("README", fallback_next_tag="CHANGELOG")
+          changelog = extract("CHANGELOG", allow_eof=True)
 
           with open("README.md", "w", encoding="utf-8") as f:
               f.write(readme)
