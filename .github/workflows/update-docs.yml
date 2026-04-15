@@ -27,7 +27,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: master
@@ -51,6 +52,7 @@ jobs:
           if [ -z "$URL" ]; then
             URL="https://github.com/${{ github.repository }}/releases/tag/$TAG"
           fi
+
           if [ -z "$DATE" ]; then
             DATE=$(date +%Y-%m-%d)
           fi
@@ -60,10 +62,10 @@ jobs:
           echo "date=$DATE" >> "$GITHUB_OUTPUT"
 
       - name: Get diff from previous tag
+        id: diff
         run: |
           TAG="${{ steps.release.outputs.tag }}"
 
-          # Find the previous tag (by version sort, excluding the current one)
           PREV_TAG=$(git tag --sort=-v:refname | grep -v "^${TAG}$" | head -1)
 
           if [ -z "$PREV_TAG" ]; then
@@ -74,13 +76,9 @@ jobs:
           echo "prev_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
           echo "Diffing $PREV_TAG..$TAG"
 
-          # All changed files (not just source — includes config, docs, workflows)
           git diff "$PREV_TAG" "$TAG" --name-status | head -200 > /tmp/changed_files.txt
-
-          # Full diff
           git diff "$PREV_TAG" "$TAG" -U3 | head -c 100000 > /tmp/release.diff
 
-          # If diff is empty, use stat summary
           if [ ! -s /tmp/release.diff ]; then
             git diff "$PREV_TAG" "$TAG" --stat | head -c 100000 > /tmp/release.diff
           fi
@@ -108,7 +106,7 @@ jobs:
           if [ -f README.md ]; then
             cp README.md /tmp/current_readme.md
           else
-            echo "" > /tmp/current_readme.md
+            : > /tmp/current_readme.md
           fi
 
       - name: Render prompt
@@ -144,36 +142,28 @@ jobs:
         env:
           AI_RESPONSE_FILE: ${{ steps.ai.outputs.response-file }}
         run: |
-          # Strip markdown code fences if present, then parse JSON
           sed '/^```/d' "$AI_RESPONSE_FILE" > /tmp/clean_response.json
 
-          # Extract the new changelog entry (includes entry block + link reference line)
           ENTRY=$(jq -r '.changelog_entry' /tmp/clean_response.json)
-
-          # Split entry into the version block and the link reference
           ENTRY_BLOCK=$(echo "$ENTRY" | sed '/^\[.*\]: http/d')
           LINK_REF=$(echo "$ENTRY" | grep '^\[.*\]: http' || true)
 
-          # Update CHANGELOG.md: insert new entry after ## [Unreleased]
           if [ -f CHANGELOG.md ] && grep -q "## \[Unreleased\]" CHANGELOG.md; then
             {
-              # Everything up to and including ## [Unreleased]
               sed '/## \[Unreleased\]/q' CHANGELOG.md
               echo ""
               echo "$ENTRY_BLOCK"
               echo ""
-              # Everything after ## [Unreleased] (skip the line itself)
               sed '1,/## \[Unreleased\]/d' CHANGELOG.md
             } > /tmp/updated_changelog.md
 
-            # Insert link reference before the last blank lines / existing references
             if [ -n "$LINK_REF" ]; then
-              # Add link ref after the last existing link reference, or at the end
               if grep -q '^\[.*\]: http' /tmp/updated_changelog.md; then
-                # Find the first link reference line and insert before it
                 FIRST_REF_LINE=$(grep -n '^\[.*\]: http' /tmp/updated_changelog.md | head -1 | cut -d: -f1)
-                sed "${FIRST_REF_LINE}i\\
-${LINK_REF}" /tmp/updated_changelog.md > /tmp/updated_changelog2.md
+                awk -v insert_line="$FIRST_REF_LINE" -v link_ref="$LINK_REF" '
+                  NR == insert_line { print link_ref }
+                  { print }
+                ' /tmp/updated_changelog.md > /tmp/updated_changelog2.md
                 mv /tmp/updated_changelog2.md /tmp/updated_changelog.md
               else
                 echo "" >> /tmp/updated_changelog.md
@@ -183,7 +173,6 @@ ${LINK_REF}" /tmp/updated_changelog.md > /tmp/updated_changelog2.md
 
             mv /tmp/updated_changelog.md CHANGELOG.md
           else
-            # No existing CHANGELOG with [Unreleased] — create fresh
             {
               echo "# Changelog"
               echo ""
@@ -196,13 +185,13 @@ ${LINK_REF}" /tmp/updated_changelog.md > /tmp/updated_changelog2.md
               echo ""
               echo "$ENTRY_BLOCK"
             } > CHANGELOG.md
+
             if [ -n "$LINK_REF" ]; then
               echo "" >> CHANGELOG.md
               echo "$LINK_REF" >> CHANGELOG.md
             fi
           fi
 
-          # Update README.md only if the AI returned content
           README_LENGTH=$(jq -r '.readme_md | length' /tmp/clean_response.json)
           if [ "$README_LENGTH" -gt 0 ]; then
             jq -r '.readme_md' /tmp/clean_response.json > README.md
@@ -213,6 +202,7 @@ ${LINK_REF}" /tmp/updated_changelog.md > /tmp/updated_changelog2.md
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add README.md CHANGELOG.md
+
           if git diff --cached --quiet; then
             echo "No documentation changes to commit"
           else
