@@ -125,35 +125,31 @@ jobs:
           AI_RESPONSE_FILE: ${{ steps.ai.outputs.response-file }}
         run: |
           python3 - <<'PYEOF'
-          import os, sys, json, re
+          import os, sys, re
 
           response_file = os.environ["AI_RESPONSE_FILE"]
           with open(response_file, "r", encoding="utf-8") as f:
-              raw = f.read().strip()
+              raw = f.read()
 
-          # Strip a single outer markdown code fence (```json ... ``` or ``` ... ```)
-          # Only remove the first and last fence lines, not inner ones
-          fence_re = re.compile(r"^```[^\n]*\n(.*)\n```$", re.DOTALL)
-          m = fence_re.match(raw)
-          if m:
-              raw = m.group(1).strip()
+          def extract(text, tag):
+              m = re.search(rf"<<<{tag}_START>>>\n(.*?)<<<{tag}_END>>>", text, re.DOTALL)
+              if not m:
+                  print(f"Error: could not find {tag} block in AI response", file=sys.stderr)
+                  print("--- raw response (first 500 chars) ---", file=sys.stderr)
+                  print(text[:500], file=sys.stderr)
+                  sys.exit(1)
+              return m.group(1)
 
-          try:
-              data = json.loads(raw)
-          except json.JSONDecodeError as e:
-              print(f"JSON parse error: {e}", file=sys.stderr)
-              print("--- raw response (first 500 chars) ---", file=sys.stderr)
-              print(raw[:500], file=sys.stderr)
-              sys.exit(1)
+          readme   = extract(raw, "README")
+          changelog = extract(raw, "CHANGELOG")
 
-          for key, filename in [("readme_md", "README.md"), ("changelog_md", "CHANGELOG.md")]:
-              content = data.get(key, "")
-              if not content:
-                  print(f"Warning: '{key}' is empty in AI response", file=sys.stderr)
-              with open(filename, "w", encoding="utf-8") as f:
-                  f.write(content)
-              print(f"Generated {filename} ({len(content.encode())} bytes)")
+          with open("README.md", "w", encoding="utf-8") as f:
+              f.write(readme)
+          with open("CHANGELOG.md", "w", encoding="utf-8") as f:
+              f.write(changelog)
 
+          print(f"Generated README.md ({len(readme.encode())} bytes)")
+          print(f"Generated CHANGELOG.md ({len(changelog.encode())} bytes)")
           PYEOF
 
       - name: Create pull request
