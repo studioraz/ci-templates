@@ -114,10 +114,10 @@ jobs:
       - name: Generate initial documentation
         if: steps.check.outputs.exists == 'false'
         id: ai
-        uses: actions/ai-inference@v1
+        uses: actions/ai-inference@v2.0.7
         with:
           prompt-file: /tmp/prompt.txt
-          model: openai/gpt-5
+          model: openai/gpt-4.1
 
       - name: Write documentation files
         if: steps.check.outputs.exists == 'false'
