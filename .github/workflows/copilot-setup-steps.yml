@@ -1,0 +1,45 @@
+name: Copilot Setup Steps
+
+on:
+  workflow_call:
+    inputs:
+      php-version:
+        description: PHP version
+        required: false
+        default: '8.3'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          ref: ${{ github.sha }}
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php-version }}
+          coverage: none
+          extensions: xml, bcmath, ctype, curl, dom, gd, intl, mbstring, openssl, pdo_mysql, simplexml, soap, xsl, zip, iconv, xmlwriter, fileinfo, tokenizer
+
+      - name: Cache vendor
+        id: vendor-cache
+        uses: actions/cache@v4
+        with:
+          path: ./vendor
+          key: vendor-${{ hashFiles('composer.lock', 'composer.json') }}
+          restore-keys: |
+            vendor-
+
+      - name: Install Composer dependencies
+        if: ${{ !steps.vendor-cache.outputs.cache-hit }}
+        run: composer install --prefer-dist --no-progress --no-interaction
