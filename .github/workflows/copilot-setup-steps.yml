@@ -1,13 +1,13 @@
-name: Copilot Setup Steps
+name: "Copilot Setup Steps"
 
 on:
-  workflow_call:
-    inputs:
-      php-version:
-        description: PHP version
-        required: false
-        default: '8.3'
-        type: string
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
 
 permissions:
   contents: read
@@ -20,14 +20,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-          ref: ${{ github.sha }}
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: ${{ inputs.php-version }}
+          php-version: '8.3'
           coverage: none
           extensions: xml, bcmath, ctype, curl, dom, gd, intl, mbstring, openssl, pdo_mysql, simplexml, soap, xsl, zip, iconv, xmlwriter, fileinfo, tokenizer
 
