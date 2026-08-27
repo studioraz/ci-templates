@@ -1,8 +1,0 @@
-name: Copilot Setup Steps
-on:
-  workflow_dispatch:
-jobs:
-  setup:
-    uses: studioraz/ci-templates/.github/workflows/copilot-setup-steps.yml@master
-    with:
-      php-version: '8.3'
