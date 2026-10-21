@@ -154,15 +154,31 @@ ddev n98 app:config:dump scopes
 * Avoid formatting unrelated lines.
 * Don’t refactor unless requested.
 
-### Commit / PR Hygiene (Assume Required)
+### Conventional Commits (Required)
 
-* **PR titles are Conventional Commits** — `type(scope): JIRA-KEY description`, e.g. `feat(checkout): ALFP-107 add express checkout`. A CI check rejects other titles.
-  * Types: `feat`, `fix`, `perf`, `revert` (appear in the changelog), `docs`, `style`, `refactor`, `test`, `build`, `ci`, `chore` (do not).
-  * Lowercase, imperative description ("add", not "Added").
-  * Include the Jira key when there is a ticket.
-  * Breaking change: `!` after the type/scope (`feat(api)!: …`) and a `BREAKING CHANGE: …` line in the description.
-  * Composer package updates: `chore(deps): update vendor/package` (`fix(deps)` only when the update fixes a user-visible bug).
-* PRs are **squash merged**, so the PR title becomes the commit on the base branch — make it describe the whole change. Split unrelated changes into separate PRs.
+Every **commit message** and every **PR title** follows [Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+type(scope): JIRA-KEY description
+
+Optional body: what changed and why.
+
+BREAKING CHANGE: what breaks and how to migrate (only for breaking changes).
+```
+
+* **Types:**
+  * `feat` new feature · `fix` bug fix · `perf` performance improvement · `revert` revert of an earlier change — these appear in the changelog.
+  * `docs`, `style`, `refactor`, `test`, `build`, `ci`, `chore` — do not appear in the changelog.
+* **Scope** (optional): the area changed, e.g. `checkout`, `catalog`, a module name.
+* **Description:** lowercase, imperative, no trailing period ("add express checkout", not "Added express checkout.").
+* **Jira key** right after the colon when there is a ticket: `fix(catalog): ALFP-112 hide badge on disabled products`.
+* **Breaking changes:** `!` after the type/scope (`feat(api)!: …`) and a `BREAKING CHANGE:` footer.
+* **Composer updates:** `chore(deps): update vendor/package`; use `fix(deps)` only when the update fixes a user-visible bug.
+* Never write messages such as `wip`, `fix`, `changes`, `update files`, or `Merge …` for your own commits.
+
+### PR Hygiene
+
+* PRs are **squash merged**: the PR title (validated by CI) becomes the commit on the base branch, so it must describe the whole change. Split unrelated changes into separate PRs.
 * Clear summary of what/why in the PR description.
 * Include screenshots for UI changes.
 * Include test evidence or rationale when skipping tests.
