@@ -20,9 +20,13 @@ sync PR on its next run.
 …project rules, never touched by the sync…
 ```
 
-Recommended contents of *Project specifics*: the frontend theme (**Hyvä** or **Luma** —
-the org rules cover both and pick one from this section first), store codes, custom
-module vendor/prefix, integrations, and environments.
+Recommended contents of *Project specifics* — the org rules read these first:
+
+```markdown
+- Theme: Hyvä — `app/design/frontend/SR/default`
+- Build CSS: `ddev exec npm --prefix app/design/frontend/SR/default/web/tailwind run build`
+- Store codes, custom module vendor/prefix, integrations, environments …
+```
 
 - No `AGENTS.md` yet → created with the block and an empty *Project specifics* section.
 - `AGENTS.md` without a block (first run) → block added on top, existing content kept under *Project specifics*.

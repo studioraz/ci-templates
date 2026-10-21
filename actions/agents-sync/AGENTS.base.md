@@ -78,6 +78,30 @@ Never mix the two stacks.
 * Do not introduce new tooling unless asked.
 * Keep layout XML minimal and scoped.
 
+### Building the Frontend
+
+Find the build command in this order:
+
+1. The build command in *Project specifics*, if given.
+2. `ddev npm run build-all` if the root `package.json` defines a `build-all` script.
+3. Otherwise the theme-specific steps below.
+
+**Hyvä** — rebuild after changing `.phtml`, layout XML, Tailwind config or theme CSS (Tailwind only generates classes it finds):
+
+* Run the build script from the theme's `web/tailwind/package.json`, e.g. `ddev exec npm --prefix app/design/frontend/<Vendor>/<theme>/web/tailwind run build`.
+* Whether the generated `web/css/styles.css` is committed follows the project (check `.gitignore` and history); don't change that convention.
+
+**Luma** — after changing LESS, RequireJS config or JS:
+
+* `ddev exec grunt refresh` if the project has a `Gruntfile.js`; otherwise remove `pub/static/frontend/<Vendor>/<theme>` and `var/view_preprocessed`, then `ddev n98 cache:clean`.
+* Don't run `setup:static-content:deploy` unless the project runs in production mode.
+
+**Both**
+
+* Never commit `pub/static/`, `var/` or `generated/`.
+* Run the build before finishing a frontend change and fix any errors it reports.
+* If you can't build (no DDEV or Node available, e.g. in a cloud agent), say so in the PR description instead of skipping silently.
+
 ### Naming & Structure
 
 * New modules live in: `<root_magento>/app/code/SR/<ModuleName>`.
@@ -250,7 +274,7 @@ If trade‑offs matter, provide:
 
 * **Source:** `app/code/`, `app/design/`, `app/etc/`, `lib/`
 * **Config:** `composer.json`, `composer.lock`, `app/etc/`, `config/`, `nginx.conf.sample`, `Gruntfile.js*`, `package.json`, `patches/`
-* **Build:** `ddev npm run build-all` where defined in `package.json` (Hyvä: Tailwind build in the theme; Luma: Grunt / static content deploy)
+* **Build:** see *Building the Frontend* (`ddev npm run build-all` where defined)
 * **Docs:** `CHANGELOG.md`, `SECURITY.md`, `README.md`
 * **Tests:** `dev/tests/`, `dev/tools/`
 * **Assets:** `pub/static/`, `pub/media/`, `pub/errors/`
