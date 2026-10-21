@@ -1,3 +1,7 @@
+# Studioraz organization instructions
+
+Applies to every Studioraz Magento 2 project. Project-specific rules follow in the *Project specifics* section.
+
 ## 0. Non‑Negotiables
 
 * **PHP compatibility:** PHP **8.2+** only.
@@ -152,10 +156,17 @@ ddev n98 app:config:dump scopes
 
 ### Commit / PR Hygiene (Assume Required)
 
-* Clear summary of what/why.
-* Mention breaking changes explicitly.
+* **PR titles are Conventional Commits** — `type(scope): JIRA-KEY description`, e.g. `feat(checkout): ALFP-107 add express checkout`. A CI check rejects other titles.
+  * Types: `feat`, `fix`, `perf`, `revert` (appear in the changelog), `docs`, `style`, `refactor`, `test`, `build`, `ci`, `chore` (do not).
+  * Lowercase, imperative description ("add", not "Added").
+  * Include the Jira key when there is a ticket.
+  * Breaking change: `!` after the type/scope (`feat(api)!: …`) and a `BREAKING CHANGE: …` line in the description.
+  * Composer package updates: `chore(deps): update vendor/package` (`fix(deps)` only when the update fixes a user-visible bug).
+* PRs are **squash merged**, so the PR title becomes the commit on the base branch — make it describe the whole change. Split unrelated changes into separate PRs.
+* Clear summary of what/why in the PR description.
 * Include screenshots for UI changes.
 * Include test evidence or rationale when skipping tests.
+* **Releases are automated** (CalVer `YYYY.MM.DD.N`): never edit `CHANGELOG.md` or `VERSION` by hand, and never merge or edit the `chore(release): release …` PR's branch manually.
 
 ### Repository Safety
 
@@ -206,7 +217,7 @@ If trade‑offs matter, provide:
 ## 12. Repository Map (Quick Reference)
 
 * **Source:** `app/code/`, `app/design/`, `app/etc/`, `lib/`
-* **Config:** `composer.json`, `composer.json`, `app/etc/`, `config/`, `nginx.conf.sample`, `Gruntfile.js*`, `package.json`, `patches/`
+* **Config:** `composer.json`, `composer.lock`, `app/etc/`, `config/`, `nginx.conf.sample`, `Gruntfile.js*`, `package.json`, `patches/`
 * **Build:** `ddev npm run build-all`
 * **Docs:** `CHANGELOG.md`, `SECURITY.md`, `README.md`
 * **Tests:** `dev/tests/`, `dev/tools/`

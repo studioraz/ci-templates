@@ -1,0 +1,17 @@
+name: Agents Sync
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  call-agents-sync:
+    uses: studioraz/ci-templates/.github/workflows/agents-sync.yml@master
+    secrets:
+      # Optional PAT / GitHub App token; without it CI does not run on the sync PR.
+      token: ${{ secrets.RELEASE_TOKEN }}
