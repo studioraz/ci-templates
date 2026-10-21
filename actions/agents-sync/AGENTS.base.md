@@ -19,7 +19,7 @@ Applies to every Studio Raz Magento 2 / Mage-OS project. Project-specific rules 
   * `mage-os/product-community-edition` → **Mage-OS**. Mage-OS versions are numbered separately from Magento; check the Mage-OS release notes for the Magento version it is based on.
 * Determine the **supported PHP version** as described in *Non-Negotiables* (from `composer.json`).
 * If a feature depends on version (PHP attributes/enums, new framework APIs), choose the **most conservative compatible** approach.
-* **Mage-OS projects:** PHP namespaces, module names and APIs are the same as Magento (`Magento\…`, `Magento_Catalog`), so write code the same way. Composer packages are published under `mage-os/*` — require `mage-os/…` packages instead of `magento/…` ones and don't add packages from `repo.magento.com`.
+* **Mage-OS projects:** PHP namespaces, module names and APIs are the same as Magento (`Magento\…`, `Magento_Catalog`), so write code the same way. Composer packages are published under `mage-os/*` — require `mage-os/…` core packages instead of `magento/…` ones (third-party extensions are unaffected).
 
 ### Tech Stack
 
