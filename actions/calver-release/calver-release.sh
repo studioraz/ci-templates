@@ -4,7 +4,7 @@
 #
 # PR mode:      collects Conventional Commits and composer.lock changes since the
 #               last release tag and keeps a release PR open with the next version,
-#               updated VERSION and CHANGELOG.md.
+#               updated VERSION and changelog file.
 # Release mode: when that PR is merged, tags its merge commit and publishes a
 #               GitHub Release with the matching CHANGELOG section. If the PR was
 #               prepared on an earlier day, the version is moved to the merge date
@@ -13,6 +13,8 @@
 # Env: GH_TOKEN (required unless DRY_RUN=1), BASE_BRANCH (default: main),
 #      TZ for the release date (default: system timezone),
 #      JIRA_BASE_URL to link issue keys such as ALFP-107 (e.g. https://acme.atlassian.net),
+#      CHANGELOG_FILE (default: CHANGELOG.md; Magento projects need another path such as
+#      docs/CHANGELOG.md, because magento2-base deploys its own root CHANGELOG.md),
 #      DRY_RUN=1 to print the computed release without pushing or calling the API.
 
 set -euo pipefail
@@ -20,6 +22,7 @@ set -euo pipefail
 DRY_RUN="${DRY_RUN:-0}"
 BASE_BRANCH="${BASE_BRANCH:-main}"
 RELEASE_BRANCH="calver-release--${BASE_BRANCH}"
+CHANGELOG_FILE="${CHANGELOG_FILE:-CHANGELOG.md}"
 LABEL_PENDING="autorelease: pending"
 LABEL_TAGGED="autorelease: tagged"
 TAG_PATTERN='^[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]+$'
@@ -77,11 +80,11 @@ mark_tagged() {
     gh pr edit "$pr" --remove-label "$LABEL_PENDING" --add-label "$LABEL_TAGGED" >/dev/null
 }
 
-# Moves the prepared release from version $1 to $2 in VERSION and CHANGELOG.md.
+# Moves the prepared release from version $1 to $2 in VERSION and the changelog.
 retarget_release() {
     local planned="$1" version="$2" planned_re="${1//./\\.}"
     echo "$version" > VERSION
-    sed -i -E "/^## \[${planned_re}\]/{ s/${planned_re}/${version}/g; s/\([0-9]{4}-[0-9]{2}-[0-9]{2}\)$/($(date +%F))/ }" CHANGELOG.md
+    sed -i -E "/^## \[${planned_re}\]/{ s/${planned_re}/${version}/g; s/\([0-9]{4}-[0-9]{2}-[0-9]{2}\)$/($(date +%F))/ }" "$CHANGELOG_FILE"
 }
 
 # Tags and publishes the release prepared by PR $1, merged as commit $2.
@@ -114,14 +117,14 @@ release() {
 
     if is_dry_run; then
         log "[dry-run] would tag ${target:0:7} as ${version} and publish release:"
-        git show "${target}:CHANGELOG.md" | release_notes "$version"
+        git show "${target}:${CHANGELOG_FILE}" | release_notes "$version"
         return 0
     fi
 
     gh release create "$version" \
         --target "$target" \
         --title "$version" \
-        --notes "$(git show "${target}:CHANGELOG.md" | release_notes "$version")"
+        --notes "$(git show "${target}:${CHANGELOG_FILE}" | release_notes "$version")"
     git tag "$version" "$target"
     log "Released ${version}"
     if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
@@ -260,10 +263,13 @@ EOF
 
 prepend_changelog() {
     local entry="$1" tmp
-    [[ -f CHANGELOG.md ]] || printf '# Changelog\n' > CHANGELOG.md
+    if [[ ! -f "$CHANGELOG_FILE" ]]; then
+        mkdir -p "$(dirname "$CHANGELOG_FILE")"
+        printf '# Changelog\n' > "$CHANGELOG_FILE"
+    fi
     tmp="$(mktemp)"
-    { head -n 1 CHANGELOG.md; echo; printf '%s\n' "$entry"; tail -n +2 CHANGELOG.md; } > "$tmp"
-    mv "$tmp" CHANGELOG.md
+    { head -n 1 "$CHANGELOG_FILE"; echo; printf '%s\n' "$entry"; tail -n +2 "$CHANGELOG_FILE"; } > "$tmp"
+    mv "$tmp" "$CHANGELOG_FILE"
 }
 
 open_or_update_pr() {
@@ -273,7 +279,7 @@ open_or_update_pr() {
     git checkout -B "$RELEASE_BRANCH"
     echo "$version" > VERSION
     prepend_changelog "$ENTRY"
-    git add VERSION CHANGELOG.md
+    git add VERSION "$CHANGELOG_FILE"
     git commit -q -m "$title"
 
     if git rev-parse -q --verify "refs/remotes/origin/${RELEASE_BRANCH}" >/dev/null \
@@ -307,10 +313,23 @@ sync_base_branch() {
     git checkout -q -B "$BASE_BRANCH" "origin/${BASE_BRANCH}"
 }
 
+# Fails early when a file the workflow writes is git-ignored, e.g. CHANGELOG.md in
+# Magento projects (magento2-base deploys its own root CHANGELOG.md).
+ensure_paths_not_ignored() {
+    local path
+    for path in VERSION "$CHANGELOG_FILE"; do
+        if git check-ignore -q "$path"; then
+            echo "::error::${path} is ignored by .gitignore. Set the changelog-file input to another path (e.g. docs/CHANGELOG.md in Magento projects) or stop ignoring it." >&2
+            exit 1
+        fi
+    done
+}
+
 main() {
     local pending pr sha previous range version body_file
 
     is_dry_run || sync_base_branch
+    ensure_paths_not_ignored
 
     pending="$(pending_release_prs)"
     while read -r pr sha; do

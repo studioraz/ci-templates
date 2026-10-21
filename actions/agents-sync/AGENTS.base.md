@@ -246,7 +246,7 @@ BREAKING CHANGE: what breaks and how to migrate (only for breaking changes).
 * Clear summary of what/why in the PR description.
 * Include screenshots for UI changes.
 * Include test evidence or rationale when skipping tests.
-* **Releases are automated** (CalVer `YYYY.MM.DD.N`): never edit `CHANGELOG.md` or `VERSION` by hand, and never merge or edit the `chore(release): release …` PR's branch manually.
+* **Releases are automated** (CalVer `YYYY.MM.DD.N`): never edit `VERSION` or the release changelog (`docs/CHANGELOG.md`, or `CHANGELOG.md` outside Magento projects) by hand, and never merge or edit the `chore(release): release …` PR's branch manually.
 
 ### Repository Safety
 

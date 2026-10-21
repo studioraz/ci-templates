@@ -16,6 +16,7 @@ token to read this private repo.
 | `github-token` | — (required) | Token for git pushes and the GitHub API |
 | `timezone` | `Asia/Jerusalem` | Timezone of the release date |
 | `jira-base-url` | `""` | Jira site for issue links; empty disables linking |
+| `changelog-file` | `CHANGELOG.md` | Changelog file to update |
 | `dry-run` | `false` | Print the computed release instead of writing anything |
 
 Output: `released` — the version tagged by this run, empty otherwise.
