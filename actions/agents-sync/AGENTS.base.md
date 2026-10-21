@@ -5,7 +5,7 @@ Applies to every Studio Raz Magento 2 / Mage-OS project. Project-specific rules 
 ## 0. Non‑Negotiables
 
 * **PHP compatibility:** target the PHP version the project's `composer.json` allows — `config.platform.php` if set, otherwise the lowest version in `require.php` (e.g. `~8.2.0||~8.3.0` → write PHP 8.2-compatible code).
-* **Magento CLI:** always use `ddev n98`, never `bin/magento` unless explicitly requested.
+* **Magento CLI:** with DDEV always use `ddev n98`, never `bin/magento` unless explicitly requested. Without DDEV (cloud agents, CI) don't run Magento CLI at all — see *Development Environment Rules*.
 * **Prefer OOTB:** use Magento built‑ins (and Hyvä built‑ins on Hyvä projects) over custom implementations.
 * **Minimal diffs:** don’t rewrite whole files; patch the smallest surface area.
 * **No secrets:** never hardcode credentials, API keys, or tokens.
@@ -30,7 +30,7 @@ Applies to every Studio Raz Magento 2 / Mage-OS project. Project-specific rules 
 * Composer + npm
 * nginx
 * PHPUnit + Magento integration tests
-* DDEV local dev
+* DDEV local dev (not available in cloud agents such as the Copilot coding agent, or in CI)
 
 ---
 
@@ -83,6 +83,8 @@ Never mix the two stacks.
 * Keep layout XML minimal and scoped.
 
 ### Building the Frontend
+
+Commands below are in DDEV form. Without DDEV, run npm/grunt directly (drop the `ddev` / `ddev exec` prefix) and skip steps that need the Magento CLI — see *Development Environment Rules*.
 
 Find the build command in this order:
 
@@ -168,8 +170,13 @@ When suggesting tests:
 
 ## 7. Development Environment Rules
 
-* Assume local dev is via DDEV.
-* Commands must be provided as `ddev n98 <command>`.
+Check whether DDEV is available (`command -v ddev`) before running any project command, and follow the matching mode.
+
+### With DDEV (local development)
+
+* Run everything inside DDEV:
+  * Magento CLI: `ddev n98 <command>`, never `bin/magento`.
+  * Composer / npm / PHP tools: `ddev composer …`, `ddev exec npm …`, `ddev exec vendor/bin/…`.
 * For cache/di/static tasks, prefer explicit scopes/areas.
 
 Common commands:
@@ -187,6 +194,19 @@ ddev n98 cache:flush
 # Config dump
 ddev n98 app:config:dump scopes
 ```
+
+### Without DDEV (Copilot coding agent, CI, other cloud agents)
+
+There is no database, Redis or OpenSearch, so:
+
+* **Don't run** commands that need them: Magento CLI (`setup:upgrade`, `setup:di:compile`, cache, indexers, config) and integration tests. Don't fall back to `bin/magento`.
+* **Do run** what works without services, calling the tools directly (only if `vendor/` / `node_modules/` are installed):
+  * `composer validate`
+  * `php -l <changed files>`
+  * `vendor/bin/phpcs`, `vendor/bin/phpstan` (if configured in the project)
+  * `vendor/bin/phpunit` for unit tests
+  * Hyvä Tailwind build: `npm --prefix app/design/frontend/<Vendor>/<theme>/web/tailwind run build`
+* **List the checks you could not run** in the PR description (e.g. "`setup:upgrade` and integration tests not run — no DDEV"), so a developer runs them locally.
 
 ---
 
