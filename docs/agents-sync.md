@@ -23,6 +23,7 @@ sync PR on its next run.
 Recommended contents of *Project specifics* — the org rules read these first:
 
 ```markdown
+- Distribution: Mage-OS 1.x (based on Magento 2.4.7)
 - Theme: Hyvä — `app/design/frontend/SR/default`
 - Build CSS: `ddev exec npm --prefix app/design/frontend/SR/default/web/tailwind run build`
 - Store codes, custom module vendor/prefix, integrations, environments …

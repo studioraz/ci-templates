@@ -1,6 +1,6 @@
 # Studio Raz Organization Instructions
 
-Applies to every Studioraz Magento 2 project. Project-specific rules follow in the *Project specifics* section.
+Applies to every Studio Raz Magento 2 / Mage-OS project. Project-specific rules follow in the *Project specifics* section.
 
 ## 0. Non‑Negotiables
 
@@ -14,12 +14,16 @@ Applies to every Studioraz Magento 2 project. Project-specific rules follow in t
 
 ## 1. Determine Versions & Stack (Before Coding)
 
-* Determine **current Magento version** and **supported PHP version** from Adobe Commerce/Magento system requirements.
-* If a feature depends on version (PHP attributes/enums, new Magento APIs), choose the **most conservative compatible** approach.
+* Determine the **distribution and version** from `composer.json` / `composer.lock`:
+  * `magento/product-community-edition` → **Magento Open Source**; `magento/product-enterprise-edition` → **Adobe Commerce**.
+  * `mage-os/product-community-edition` → **Mage-OS**. Mage-OS versions are numbered separately from Magento; check the Mage-OS release notes for the Magento version it is based on.
+* Determine the **supported PHP version** as described in *Non-Negotiables* (from `composer.json`).
+* If a feature depends on version (PHP attributes/enums, new framework APIs), choose the **most conservative compatible** approach.
+* **Mage-OS projects:** PHP namespaces, module names and APIs are the same as Magento (`Magento\…`, `Magento_Catalog`), so write code the same way. Composer packages are published under `mage-os/*` — require `mage-os/…` packages instead of `magento/…` ones and don't add packages from `repo.magento.com`.
 
 ### Tech Stack
 
-* Magento 2 (Open Source / Adobe Commerce)
+* **Magento 2** (Open Source / Adobe Commerce) or **Mage-OS** — differs per project, see above
 * PHP 8.x
 * Frontend theme: **Hyvä** or **Luma** — differs per project, see *Frontend* below
 * JavaScript (Grunt / Node)
