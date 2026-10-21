@@ -1,4 +1,4 @@
-# Studioraz organization instructions
+# Studio Raz Organization Instructions
 
 Applies to every Studioraz Magento 2 project. Project-specific rules follow in the *Project specifics* section.
 

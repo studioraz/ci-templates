@@ -12,7 +12,7 @@ sync PR on its next run.
 
 ```markdown
 <!-- BEGIN ci-templates:agents-base — managed by studioraz/ci-templates, do not edit here -->
-# Studioraz organization instructions
+# Studio Raz Organization Instructions
 …
 <!-- END ci-templates:agents-base -->
 
