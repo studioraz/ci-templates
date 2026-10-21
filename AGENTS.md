@@ -11,8 +11,7 @@ A shared library of **reusable GitHub Actions workflows** for Studioraz Magento 
 |-----------|------|
 | `.github/workflows/` | **Canonical reusable workflows** — triggered only via `workflow_call`. Must be flat (GitHub does not support subfolders), so names are grouped by prefix (`release-`, `docs-`, `pr-`, …). `_`-prefixed files are this repo's own CI, not reusable. |
 | `actions/` | **Composite actions** used by the reusable workflows, one self-contained folder each (they ship their scripts, so no token is needed to fetch them) |
-| `callers/` | **Caller templates** for newer workflows, named like the reusable workflow they call |
-| `action-caller/` | **Caller templates** for the older workflows (to be moved to `callers/`) |
+| `callers/` | **Caller templates** — copy these into consumer repos; each is named like the reusable workflow it calls |
 | `docs/` | One page per workflow: inputs, secrets, outputs, permissions, setup |
 | `tests/` | Script tests, run by `.github/workflows/_ci.yml` |
 | `prompts/` | **AI system prompts** — used by documentation workflows (`init-docs`, `update-docs`) |
@@ -75,7 +74,7 @@ Requires Conventional Commit PR titles (`amannn/action-semantic-pull-request`). 
 
 - **No `composer install` on update** — `update-composer-package.yml` uses `--no-install` to only refresh `composer.lock`, keeping vendor out of CI for update PRs.
 - **Cache keying** — Composer vendor is cached by `hash(composer.lock, composer.json)`; DI generated code by the same key. Cache hits skip the install/compile steps entirely.
-- **Caller files pass `php-version` explicitly** — `action-caller/build-and-deploy.yml` hardcodes `"8.1"`, while `update-composer-package.yml` reads `vars.PHP_VERSION || '8.3'`. Always set `PHP_VERSION` as a GitHub Actions variable in consumer repos.
+- **Caller files pass `php-version` explicitly** — `callers/build-and-deploy.yml` hardcodes `"8.1"`, while `update-composer-package.yml` reads `vars.PHP_VERSION || '8.3'`. Always set `PHP_VERSION` as a GitHub Actions variable in consumer repos.
 - **Permissions** — `update-composer-package.yml` requires `contents: write` and `pull-requests: write`; declare these in the caller file.
 - **CI** — `.github/workflows/_ci.yml` runs actionlint (pre-existing findings in older workflows are listed in `.github/actionlint.yaml`), shellcheck on `actions/` and `tests/`, and `tests/calver-release/run.sh`. Older workflows have no tests — validate them by tracing step IDs and `$GITHUB_OUTPUT` writes.
 - **AI prompts centralized** — `prompts/` contains system prompts shared across all consumer repos. Reusable doc workflows check out this repo via sparse checkout to access them at runtime.
