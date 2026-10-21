@@ -1,0 +1,81 @@
+name: CalVer Release
+
+on:
+  workflow_call:
+    inputs:
+      base-branch:
+        description: "Branch releases are cut from (defaults to the repository default branch)"
+        required: false
+        type: string
+        default: ""
+      timezone:
+        description: "Timezone of the release date"
+        required: false
+        type: string
+        default: "Asia/Jerusalem"
+      jira-base-url:
+        description: "Jira site used to link issue keys in the changelog (empty disables linking)"
+        required: false
+        type: string
+        default: "https://studioraz.atlassian.net"
+    secrets:
+      token:
+        description: "PAT or GitHub App token (falls back to GITHUB_TOKEN). Needed for CI to run on the release PR."
+        required: false
+    outputs:
+      released:
+        description: "Version released by this run (empty if none)"
+        value: ${{ jobs.release.outputs.released }}
+
+jobs:
+  release:
+    if: github.ref_name == (inputs.base-branch || github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    concurrency:
+      group: calver-release-${{ github.repository }}
+      cancel-in-progress: false
+    outputs:
+      released: ${{ steps.release.outputs.released }}
+    env:
+      GH_TOKEN: ${{ secrets.token || github.token }}
+      GH_REPO: ${{ github.repository }}
+      BASE_BRANCH: ${{ inputs.base-branch || github.event.repository.default_branch }}
+    steps:
+      # Draft PRs cannot be merged, so this blocks merging the release PR while
+      # it is being rebuilt. Runs first to keep the unlocked window short.
+      - name: Lock release PR (convert to draft)
+        id: lock
+        run: |
+          pr="$(gh pr list --head "calver-release--$BASE_BRANCH" --base "$BASE_BRANCH" --state open \
+            --json number,isDraft --jq '.[] | select(.isDraft | not) | .number')"
+          if [[ -n "$pr" ]]; then
+            gh pr ready --undo "$pr"
+            echo "pr=$pr" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.token || github.token }}
+
+      - name: Release
+        id: release
+        uses: studioraz/ci-templates/.github/actions/calver-release@master
+        with:
+          base-branch: ${{ env.BASE_BRANCH }}
+          github-token: ${{ secrets.token || github.token }}
+          timezone: ${{ inputs.timezone }}
+          jira-base-url: ${{ inputs.jira-base-url }}
+
+      # Always runs, so a failed job never leaves the PR stuck as a draft. Only
+      # un-drafts a PR this run drafted; one drafted by a person stays a draft.
+      - name: Unlock release PR
+        if: always() && steps.lock.outputs.pr != ''
+        env:
+          PR: ${{ steps.lock.outputs.pr }}
+        run: |
+          state="$(gh pr view "$PR" --json state,isDraft --jq '"\(.state) \(.isDraft)"')"
+          if [[ "$state" == "OPEN true" ]]; then
+            gh pr ready "$PR"
+          fi

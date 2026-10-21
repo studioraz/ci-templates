@@ -10,6 +10,7 @@ A shared library of **reusable GitHub Actions workflows** for Studioraz Magento 
 | Directory | Role |
 |-----------|------|
 | `.github/workflows/` | **Canonical reusable workflows** — triggered only via `workflow_call` |
+| `.github/actions/` | **Composite actions** used by the reusable workflows (ship their scripts, so no token is needed to fetch them) |
 | `action-caller/` | **Caller templates** — copy these into consumer repos to wire up the reusable workflows |
 | `prompts/` | **AI system prompts** — used by documentation workflows (`init-docs`, `update-docs`) |
 | `copilot/` | AI/Copilot instruction files for consumer Magento 2 projects (not for this repo itself) |
@@ -58,6 +59,23 @@ Updates `README.md` and `CHANGELOG.md` on each release using AI inference.
 - CHANGELOG follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) format; new entries are inserted after `## [Unreleased]`
 - System prompt: `prompts/update-docs.md`
 - Required permissions: `contents: write`, `models: read`
+
+### `calver-release.yml`
+Release-please-style releases with CalVer versions `YYYY.MM.DD.N` (`N` restarts at 1 each day; tags have no `v` prefix).
+- Trigger: `workflow_call`; caller runs it on `push` to the base branch + `workflow_dispatch`
+- Inputs: `base-branch` (default: repo default branch), `timezone` (default `Asia/Jerusalem`), `jira-base-url` (default `https://studioraz.atlassian.net`, empty disables linking)
+- Optional secret: `token` (PAT/App token; falls back to `GITHUB_TOKEN`, which does not trigger CI on the release PR)
+- Output: `released` — version tagged by this run, empty otherwise (use it to chain `build-and-deploy.yml`)
+- Each run: converts the open release PR to draft (merge lock) → tags + publishes any merged release PR still labelled `autorelease: pending` (moving it to the merge date if it was prepared on an earlier day — pushes a `chore(release)` commit to the base branch) → rebuilds branch `calver-release--<base>` from the latest base branch with `VERSION` + a `CHANGELOG.md` entry and opens/updates the PR → marks the PR ready again (always)
+- Changelog: Conventional Commit subjects (`feat`/`fix`/`perf`/`revert`, breaking via `!` or `BREAKING CHANGE:`) + a **Composer Dependencies** section diffed from `composer.lock` since the last tag; Jira keys and `(#123)` become links
+- Logic lives in `.github/actions/calver-release/calver-release.sh` (bash 4+, `git`, `gh`, `jq`; `DRY_RUN=1` prints instead of writing)
+- Required permissions: `contents: write`, `pull-requests: write`; repo setting *Allow GitHub Actions to create and approve pull requests*
+
+### `pr-title.yml`
+Validates that PR titles are Conventional Commits with `amannn/action-semantic-pull-request`.
+- Trigger: `workflow_call`; caller runs it on `pull_request` (`opened`, `edited`, `synchronize`, `reopened`)
+- Pair with squash-only merging and *Default commit message: Pull request title*, so the validated title is the commit subject `calver-release.yml` reads
+- Required permissions: `pull-requests: read`
 
 ---
 
