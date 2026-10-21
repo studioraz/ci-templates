@@ -9,9 +9,12 @@ A shared library of **reusable GitHub Actions workflows** for Studioraz Magento 
 
 | Directory | Role |
 |-----------|------|
-| `.github/workflows/` | **Canonical reusable workflows** — triggered only via `workflow_call` |
-| `.github/actions/` | **Composite actions** used by the reusable workflows (ship their scripts, so no token is needed to fetch them) |
-| `action-caller/` | **Caller templates** — copy these into consumer repos to wire up the reusable workflows |
+| `.github/workflows/` | **Canonical reusable workflows** — triggered only via `workflow_call`. Must be flat (GitHub does not support subfolders), so names are grouped by prefix (`release-`, `docs-`, `pr-`, …). `_`-prefixed files are this repo's own CI, not reusable. |
+| `actions/` | **Composite actions** used by the reusable workflows, one self-contained folder each (they ship their scripts, so no token is needed to fetch them) |
+| `callers/` | **Caller templates** for newer workflows, named like the reusable workflow they call |
+| `action-caller/` | **Caller templates** for the older workflows (to be moved to `callers/`) |
+| `docs/` | One page per workflow: inputs, secrets, outputs, permissions, setup |
+| `tests/` | Script tests, run by `.github/workflows/_ci.yml` |
 | `prompts/` | **AI system prompts** — used by documentation workflows (`init-docs`, `update-docs`) |
 | `copilot/` | AI/Copilot instruction files for consumer Magento 2 projects (not for this repo itself) |
 
@@ -60,22 +63,11 @@ Updates `README.md` and `CHANGELOG.md` on each release using AI inference.
 - System prompt: `prompts/update-docs.md`
 - Required permissions: `contents: write`, `models: read`
 
-### `calver-release.yml`
-Release-please-style releases with CalVer versions `YYYY.MM.DD.N` (`N` restarts at 1 each day; tags have no `v` prefix).
-- Trigger: `workflow_call`; caller runs it on `push` to the base branch + `workflow_dispatch`
-- Inputs: `base-branch` (default: repo default branch), `timezone` (default `Asia/Jerusalem`), `jira-base-url` (default `https://studioraz.atlassian.net`, empty disables linking)
-- Optional secret: `token` (PAT/App token; falls back to `GITHUB_TOKEN`, which does not trigger CI on the release PR)
-- Output: `released` — version tagged by this run, empty otherwise (use it to chain `build-and-deploy.yml`)
-- Each run: converts the open release PR to draft (merge lock) → tags + publishes any merged release PR still labelled `autorelease: pending` (moving it to the merge date if it was prepared on an earlier day — pushes a `chore(release)` commit to the base branch) → rebuilds branch `calver-release--<base>` from the latest base branch with `VERSION` + a `CHANGELOG.md` entry and opens/updates the PR → marks the PR ready again (always)
-- Changelog: Conventional Commit subjects (`feat`/`fix`/`perf`/`revert`, breaking via `!` or `BREAKING CHANGE:`) + a **Composer Dependencies** section diffed from `composer.lock` since the last tag; Jira keys and `(#123)` become links
-- Logic lives in `.github/actions/calver-release/calver-release.sh` (bash 4+, `git`, `gh`, `jq`; `DRY_RUN=1` prints instead of writing)
-- Required permissions: `contents: write`, `pull-requests: write`; repo setting *Allow GitHub Actions to create and approve pull requests*
+### `release-calver.yml`
+Release-please-style releases with CalVer versions `YYYY.MM.DD.N`; keeps a release PR up to date, tags and publishes on merge, `released` output for chaining deploys. Logic in `actions/calver-release/`. Full reference: [docs/release-calver.md](docs/release-calver.md).
 
 ### `pr-title.yml`
-Validates that PR titles are Conventional Commits with `amannn/action-semantic-pull-request`.
-- Trigger: `workflow_call`; caller runs it on `pull_request` (`opened`, `edited`, `synchronize`, `reopened`)
-- Pair with squash-only merging and *Default commit message: Pull request title*, so the validated title is the commit subject `calver-release.yml` reads
-- Required permissions: `pull-requests: read`
+Requires Conventional Commit PR titles (`amannn/action-semantic-pull-request`). Full reference: [docs/pr-title.md](docs/pr-title.md).
 
 ---
 
@@ -85,13 +77,15 @@ Validates that PR titles are Conventional Commits with `amannn/action-semantic-p
 - **Cache keying** — Composer vendor is cached by `hash(composer.lock, composer.json)`; DI generated code by the same key. Cache hits skip the install/compile steps entirely.
 - **Caller files pass `php-version` explicitly** — `action-caller/build-and-deploy.yml` hardcodes `"8.1"`, while `update-composer-package.yml` reads `vars.PHP_VERSION || '8.3'`. Always set `PHP_VERSION` as a GitHub Actions variable in consumer repos.
 - **Permissions** — `update-composer-package.yml` requires `contents: write` and `pull-requests: write`; declare these in the caller file.
-- **No test suite** in this repo — validate changes by tracing input/output step IDs and `$GITHUB_OUTPUT` writes manually.
+- **CI** — `.github/workflows/_ci.yml` runs actionlint (pre-existing findings in older workflows are listed in `.github/actionlint.yaml`), shellcheck on `actions/` and `tests/`, and `tests/calver-release/run.sh`. Older workflows have no tests — validate them by tracing step IDs and `$GITHUB_OUTPUT` writes.
 - **AI prompts centralized** — `prompts/` contains system prompts shared across all consumer repos. Reusable doc workflows check out this repo via sparse checkout to access them at runtime.
 
 ---
 
 ## Adding a New Reusable Workflow
-1. Create `.github/workflows/<name>.yml` with `on: workflow_call` and typed `inputs`/`secrets`.
-2. Create a matching `action-caller/<name>.yml` with `on: workflow_dispatch` inputs mirrored from the reusable workflow, calling it with `uses: studioraz/ci-templates/.github/workflows/<name>.yml@master`.
-3. Follow the existing pattern: `secrets: inherit` in the caller, explicit `permissions` block where writes are needed.
+1. Create `.github/workflows/<group>-<name>.yml` with `on: workflow_call` and typed `inputs`/`secrets`/`outputs`.
+2. Put scripts in a composite action under `actions/<name>/` (not inline, not fetched with a token) and reference it as `studioraz/ci-templates/actions/<name>@master`.
+3. Create `callers/<group>-<name>.yml` with the triggers and explicit `permissions` a consumer needs.
+4. Document it in `docs/<group>-<name>.md` and add a short entry above; add tests under `tests/<name>/` and a job in `_ci.yml`.
+5. Never rename or move a reusable workflow consumers already call — keep the old file as a thin wrapper that calls the new one until all consumers are migrated.
 

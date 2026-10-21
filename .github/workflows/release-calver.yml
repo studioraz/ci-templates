@@ -61,7 +61,7 @@ jobs:
 
       - name: Release
         id: release
-        uses: studioraz/ci-templates/.github/actions/calver-release@master
+        uses: studioraz/ci-templates/actions/calver-release@master
         with:
           base-branch: ${{ env.BASE_BRANCH }}
           github-token: ${{ secrets.token || github.token }}
