@@ -18,6 +18,11 @@ on:
         required: false
         type: string
         default: "https://studioraz.atlassian.net"
+      changelog-file:
+        description: "Changelog file to update. Magento projects need another path than CHANGELOG.md (e.g. docs/CHANGELOG.md), because magento2-base deploys its own root CHANGELOG.md"
+        required: false
+        type: string
+        default: "CHANGELOG.md"
     secrets:
       token:
         description: "PAT or GitHub App token (falls back to GITHUB_TOKEN). Needed for CI to run on the release PR."
@@ -67,6 +72,7 @@ jobs:
           github-token: ${{ secrets.token || github.token }}
           timezone: ${{ inputs.timezone }}
           jira-base-url: ${{ inputs.jira-base-url }}
+          changelog-file: ${{ inputs.changelog-file }}
 
       # Always runs, so a failed job never leaves the PR stuck as a draft. Only
       # un-drafts a PR this run drafted; one drafted by a person stays a draft.

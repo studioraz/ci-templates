@@ -19,6 +19,10 @@ inputs:
     description: Jira site used to link issue keys in the changelog (empty disables linking)
     required: false
     default: ""
+  changelog-file:
+    description: Changelog file to update (Magento projects need e.g. docs/CHANGELOG.md, see docs/release-calver.md)
+    required: false
+    default: CHANGELOG.md
   dry-run:
     description: Print the computed release instead of pushing or calling the API
     required: false
@@ -41,4 +45,5 @@ runs:
         BASE_BRANCH: ${{ inputs.base-branch }}
         TZ: ${{ inputs.timezone }}
         JIRA_BASE_URL: ${{ inputs.jira-base-url }}
+        CHANGELOG_FILE: ${{ inputs.changelog-file }}
         DRY_RUN: ${{ inputs.dry-run == 'true' && '1' || '0' }}

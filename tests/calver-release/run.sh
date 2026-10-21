@@ -182,6 +182,27 @@ expect_contains "$out" "(previous: 2026.01.15)" "date-only tag used as previous 
 expect_contains "$out" "compare/2026.01.15...${TODAY}.1" "compare link starts at the date-only tag"
 expect_not_contains "$out" "initial commit" "commits before the date-only tag excluded"
 
+echo "8. Magento projects: root CHANGELOG.md is git-ignored"
+git init -q --bare "$WORK/magento-origin.git"
+git init -q -b main "$WORK/magento"
+cd "$WORK/magento"
+git remote add origin "$WORK/magento-origin.git"
+printf '/CHANGELOG.md\n' > .gitignore
+git add -A && git commit -qm "chore: initial commit"
+git commit -q --allow-empty -m "feat(catalog): add badge"
+git push -q origin main
+out="$(run_release || true)"
+expect_contains "$out" "CHANGELOG.md is ignored by .gitignore" "ignored default changelog reported"
+expect_not_contains "$(git ls-remote --heads origin)" "calver-release--main" "nothing pushed when the changelog is ignored"
+out="$(CHANGELOG_FILE=docs/CHANGELOG.md run_release)"
+expect_contains "$out" "Opened release PR for ${TODAY}.1" "release PR opened with docs/CHANGELOG.md"
+expect_contains "$(git show origin/calver-release--main:docs/CHANGELOG.md)" "## [${TODAY}.1]" "entry written to docs/CHANGELOG.md"
+git checkout -q main
+git merge -q --no-ff origin/calver-release--main -m "Merge pull request #8"
+git push -q origin main
+out="$(CHANGELOG_FILE=docs/CHANGELOG.md FAKE_MERGED="8 $(git rev-parse HEAD)" run_release)"
+expect_contains "$(cat "$GH_LOG")" "add badge" "release notes read from docs/CHANGELOG.md"
+
 echo
 if (( FAILED )); then
     echo "${FAILED} check(s) failed"
