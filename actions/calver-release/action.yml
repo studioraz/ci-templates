@@ -1,0 +1,44 @@
+name: CalVer release
+description: >-
+  Keeps a release-please-style release PR (YYYY.MM.DD.N) up to date and, once it
+  is merged, tags it and publishes a GitHub Release. Expects the caller repo to be
+  checked out with full history (fetch-depth: 0).
+
+inputs:
+  base-branch:
+    description: Branch releases are cut from
+    required: true
+  github-token:
+    description: Token used for git pushes and the GitHub API
+    required: true
+  timezone:
+    description: Timezone of the release date
+    required: false
+    default: Asia/Jerusalem
+  jira-base-url:
+    description: Jira site used to link issue keys in the changelog (empty disables linking)
+    required: false
+    default: ""
+  dry-run:
+    description: Print the computed release instead of pushing or calling the API
+    required: false
+    default: "false"
+
+outputs:
+  released:
+    description: Version released by this run (empty if none)
+    value: ${{ steps.release.outputs.released }}
+
+runs:
+  using: composite
+  steps:
+    - name: Create or update release PR / publish release
+      id: release
+      shell: bash
+      run: bash "$GITHUB_ACTION_PATH/calver-release.sh"
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        BASE_BRANCH: ${{ inputs.base-branch }}
+        TZ: ${{ inputs.timezone }}
+        JIRA_BASE_URL: ${{ inputs.jira-base-url }}
+        DRY_RUN: ${{ inputs.dry-run == 'true' && '1' || '0' }}

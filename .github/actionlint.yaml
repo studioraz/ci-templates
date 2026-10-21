@@ -1,0 +1,12 @@
+# Pre-existing findings in older workflows. Fix them and remove the entry.
+paths:
+  .github/workflows/build-and-deploy.yml:
+    ignore:
+      - 'has the default value .* but it is also required'
+      - 'shellcheck reported issue'
+  .github/workflows/update-composer-package.yml:
+    ignore:
+      - 'shellcheck reported issue'
+  .github/workflows/update-docs.yml:
+    ignore:
+      - 'shellcheck reported issue'

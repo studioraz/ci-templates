@@ -1,0 +1,27 @@
+name: Release
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  call-release-calver:
+    uses: studioraz/ci-templates/.github/workflows/release-calver.yml@master
+    secrets:
+      # Optional PAT / GitHub App token; without it CI does not run on the release PR.
+      token: ${{ secrets.RELEASE_TOKEN }}
+
+  # Optional: deploy every release.
+  # call-build-and-deploy:
+  #   needs: call-release-calver
+  #   if: needs.call-release-calver.outputs.released != ''
+  #   uses: studioraz/ci-templates/.github/workflows/build-and-deploy.yml@master
+  #   with:
+  #     environment: production
+  #     php-version: ${{ vars.PHP_VERSION || '8.3' }}
+  #   secrets: inherit
