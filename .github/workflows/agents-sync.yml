@@ -43,7 +43,7 @@ jobs:
           token: ${{ secrets.token || github.token }}
 
       - name: Update instructions
-        uses: studioraz/ci-templates/actions/agents-sync@master
+        uses: studioraz/ci-templates/actions/agents-sync@feat/agents-sync
         with:
           agents-file: ${{ inputs.agents-file }}
           claude-md: ${{ inputs.claude-md }}
