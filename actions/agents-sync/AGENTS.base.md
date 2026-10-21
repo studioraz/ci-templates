@@ -4,7 +4,7 @@ Applies to every Studioraz Magento 2 project. Project-specific rules follow in t
 
 ## 0. Non‑Negotiables
 
-* **PHP compatibility:** PHP **8.2+** only.
+* **PHP compatibility:** target the PHP version the project's `composer.json` allows — `config.platform.php` if set, otherwise the lowest version in `require.php` (e.g. `~8.2.0||~8.3.0` → write PHP 8.2-compatible code).
 * **Magento CLI:** always use `ddev n98`, never `bin/magento` unless explicitly requested.
 * **Prefer OOTB:** use Magento/Hyvä built‑ins over custom implementations.
 * **Minimal diffs:** don’t rewrite whole files; patch the smallest surface area.
