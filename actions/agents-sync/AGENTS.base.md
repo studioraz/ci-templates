@@ -6,7 +6,7 @@ Applies to every Studioraz Magento 2 project. Project-specific rules follow in t
 
 * **PHP compatibility:** target the PHP version the project's `composer.json` allows — `config.platform.php` if set, otherwise the lowest version in `require.php` (e.g. `~8.2.0||~8.3.0` → write PHP 8.2-compatible code).
 * **Magento CLI:** always use `ddev n98`, never `bin/magento` unless explicitly requested.
-* **Prefer OOTB:** use Magento/Hyvä built‑ins over custom implementations.
+* **Prefer OOTB:** use Magento built‑ins (and Hyvä built‑ins on Hyvä projects) over custom implementations.
 * **Minimal diffs:** don’t rewrite whole files; patch the smallest surface area.
 * **No secrets:** never hardcode credentials, API keys, or tokens.
 
@@ -21,7 +21,7 @@ Applies to every Studioraz Magento 2 project. Project-specific rules follow in t
 
 * Magento 2 (Open Source / Adobe Commerce)
 * PHP 8.x
-* Hyvä theme
+* Frontend theme: **Hyvä** or **Luma** — differs per project, see *Frontend* below
 * JavaScript (Grunt / Node)
 * Composer + npm
 * nginx
@@ -53,12 +53,28 @@ Applies to every Studioraz Magento 2 project. Project-specific rules follow in t
 * Favor immutability and pure functions for business logic.
 * Use translation via `__()` only in presentation or message contexts.
 
-### Hyvä / Frontend
+### Frontend (Hyvä or Luma)
 
-* Respect Hyvä patterns:
+Projects use either **Hyvä** or **Luma**. Determine which before writing frontend code:
 
-  * AlpineJS for interactivity
-  * Tailwind for styling
+1. The *Project specifics* section of this file, if it states the theme.
+2. Otherwise: `hyva-themes/*` packages in `composer.json`, or a theme in `app/design/frontend/` whose `theme.xml` has parent `Hyva/default` (or another Hyvä theme) → **Hyvä**. Parent `Magento/luma` or `Magento/blank` and no Hyvä packages → **Luma**.
+
+Never mix the two stacks.
+
+**Hyvä projects**
+
+* AlpineJS for interactivity, Tailwind for styling.
+* No RequireJS, Knockout, jQuery or LESS in storefront code; use Hyvä compatibility modules for third‑party extensions.
+
+**Luma projects**
+
+* RequireJS modules; jQuery widgets or UI components (Knockout) for interactivity.
+* LESS for styling, following Magento's theme structure (`_extend.less`, `_module.less`); no Tailwind or AlpineJS.
+* Extend core JS with RequireJS mixins rather than overriding files.
+
+**Both**
+
 * Do not introduce new tooling unless asked.
 * Keep layout XML minimal and scoped.
 
@@ -234,7 +250,7 @@ If trade‑offs matter, provide:
 
 * **Source:** `app/code/`, `app/design/`, `app/etc/`, `lib/`
 * **Config:** `composer.json`, `composer.lock`, `app/etc/`, `config/`, `nginx.conf.sample`, `Gruntfile.js*`, `package.json`, `patches/`
-* **Build:** `ddev npm run build-all`
+* **Build:** `ddev npm run build-all` where defined in `package.json` (Hyvä: Tailwind build in the theme; Luma: Grunt / static content deploy)
 * **Docs:** `CHANGELOG.md`, `SECURITY.md`, `README.md`
 * **Tests:** `dev/tests/`, `dev/tools/`
 * **Assets:** `pub/static/`, `pub/media/`, `pub/errors/`
