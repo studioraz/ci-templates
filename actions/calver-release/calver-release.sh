@@ -23,6 +23,9 @@ RELEASE_BRANCH="calver-release--${BASE_BRANCH}"
 LABEL_PENDING="autorelease: pending"
 LABEL_TAGGED="autorelease: tagged"
 TAG_PATTERN='^[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]+$'
+# Also counts date-only tags (YYYY.MM.DD) made before adopting this workflow as
+# previous releases, so the first release PR starts from the last of them.
+PREVIOUS_TAG_PATTERN='^[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$'
 RELEASE_SUBJECT_PREFIX="chore(release): release "
 
 if [[ -z "${GITHUB_REPOSITORY:-}" ]]; then
@@ -133,7 +136,7 @@ release() {
 # --------------------------------------------------------------------------
 
 last_release_tag() {
-    git tag --merged HEAD | grep -E "$TAG_PATTERN" | sort -V | tail -n 1 || true
+    git tag --merged HEAD | grep -E "$PREVIOUS_TAG_PATTERN" | sort -V | tail -n 1 || true
 }
 
 next_version() {

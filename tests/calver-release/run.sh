@@ -170,6 +170,18 @@ expect_contains "$(git log -1 --format=%s origin/main)" "chore(release): release
 expect_contains "$(git show origin/main:VERSION)" "${TODAY}.3" "VERSION corrected"
 expect_contains "$(git show origin/main:CHANGELOG.md)" "## [${TODAY}.3]" "changelog heading corrected"
 
+echo "7. Date-only tags from before the workflow count as previous releases"
+git init -q -b main "$WORK/legacy"
+cd "$WORK/legacy"
+cp "$WORK/repo/composer.lock" "$WORK/repo/CHANGELOG.md" .
+git add -A && git commit -qm "chore: initial commit"
+git tag 2026.01.15
+git commit -q --allow-empty -m "feat: after the last manual release"
+out="$(dry_run)"
+expect_contains "$out" "(previous: 2026.01.15)" "date-only tag used as previous release"
+expect_contains "$out" "compare/2026.01.15...${TODAY}.1" "compare link starts at the date-only tag"
+expect_not_contains "$out" "initial commit" "commits before the date-only tag excluded"
+
 echo
 if (( FAILED )); then
     echo "${FAILED} check(s) failed"
