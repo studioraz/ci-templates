@@ -1,0 +1,25 @@
+name: Agents sync
+description: >-
+  Writes the Studioraz organization agent instructions into a managed block of the
+  project's AGENTS.md (and makes CLAUDE.md import it). Only changes files; committing
+  and opening a PR is up to the caller.
+
+inputs:
+  agents-file:
+    description: Instructions file to manage
+    required: false
+    default: AGENTS.md
+  claude-md:
+    description: Create or update CLAUDE.md so it imports the instructions file
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Update managed block
+      shell: bash
+      run: bash "$GITHUB_ACTION_PATH/sync.sh"
+      env:
+        AGENTS_FILE: ${{ inputs.agents-file }}
+        CLAUDE_MD: ${{ inputs.claude-md }}

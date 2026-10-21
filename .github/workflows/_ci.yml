@@ -31,3 +31,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: tests/calver-release/run.sh
+
+  test-agents-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: tests/agents-sync/run.sh

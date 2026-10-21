@@ -15,7 +15,7 @@ A shared library of **reusable GitHub Actions workflows** for Studioraz Magento 
 | `docs/` | One page per workflow: inputs, secrets, outputs, permissions, setup |
 | `tests/` | Script tests, run by `.github/workflows/_ci.yml` |
 | `prompts/` | **AI system prompts** — used by documentation workflows (`init-docs`, `update-docs`) |
-| `copilot/` | AI/Copilot instruction files for consumer Magento 2 projects (not for this repo itself) |
+| `copilot/` | Copilot instruction template for consumer projects (`copilot-instructions-ai.md`). The organization agent instructions moved to `actions/agents-sync/AGENTS.base.md`. |
 
 Consumer repos call templates like:
 ```yaml
@@ -64,6 +64,9 @@ Updates `README.md` and `CHANGELOG.md` on each release using AI inference.
 
 ### `release-calver.yml`
 Release-please-style releases with CalVer versions `YYYY.MM.DD.N`; keeps a release PR up to date, tags and publishes on merge, `released` output for chaining deploys. Logic in `actions/calver-release/`. Full reference: [docs/release-calver.md](docs/release-calver.md).
+
+### `agents-sync.yml`
+Syncs the organization agent instructions (`actions/agents-sync/AGENTS.base.md`) into a managed block of each project's `AGENTS.md` via a weekly PR, and makes `CLAUDE.md` import it. Full reference: [docs/agents-sync.md](docs/agents-sync.md).
 
 ### `pr-title.yml`
 Requires Conventional Commit PR titles (`amannn/action-semantic-pull-request`). Full reference: [docs/pr-title.md](docs/pr-title.md).
