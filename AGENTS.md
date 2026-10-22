@@ -65,11 +65,14 @@ Updates `README.md` and `CHANGELOG.md` on each release using AI inference.
 ### `release-calver.yml`
 Release-please-style releases with CalVer versions `YYYY.MM.DD.N`; keeps a release PR up to date, tags and publishes on merge, `released` output for chaining deploys. Logic in `actions/calver-release/`. Full reference: [docs/release-calver.md](docs/release-calver.md).
 
+### `release-please.yml`
+SemVer releases for standalone modules with [release-please](https://github.com/googleapis/release-please): release PR, tag and GitHub Release on merge, `released` output for chaining. The shared config defaults live in `actions/release-please-config/release-please-config.base.json` and reach each module through a sync PR. Full reference: [docs/release-please.md](docs/release-please.md).
+
 ### `agents-sync.yml`
 Syncs the organization agent instructions (`actions/agents-sync/AGENTS.base.md`) into a managed block of each project's `AGENTS.md` via a weekly PR, and makes `CLAUDE.md` import it. Full reference: [docs/agents-sync.md](docs/agents-sync.md).
 
 ### `pr-title.yml`
-Requires Conventional Commit PR titles (`amannn/action-semantic-pull-request`). Full reference: [docs/pr-title.md](docs/pr-title.md).
+Requires Conventional Commit PR titles (`amannn/action-semantic-pull-request`); opt-in inputs for scopes, subject pattern, single-commit check, `[WIP]`, ignore labels and an error comment. Full reference: [docs/pr-title.md](docs/pr-title.md).
 
 ---
 
@@ -79,7 +82,7 @@ Requires Conventional Commit PR titles (`amannn/action-semantic-pull-request`). 
 - **Cache keying** — Composer vendor is cached by `hash(composer.lock, composer.json)`; DI generated code by the same key. Cache hits skip the install/compile steps entirely.
 - **Caller files pass `php-version` explicitly** — `callers/build-and-deploy.yml` hardcodes `"8.1"`, while `update-composer-package.yml` reads `vars.PHP_VERSION || '8.3'`. Always set `PHP_VERSION` as a GitHub Actions variable in consumer repos.
 - **Permissions** — `update-composer-package.yml` requires `contents: write` and `pull-requests: write`; declare these in the caller file.
-- **CI** — `.github/workflows/_ci.yml` runs actionlint (pre-existing findings in older workflows are listed in `.github/actionlint.yaml`), shellcheck on `actions/` and `tests/`, and `tests/calver-release/run.sh`. Older workflows have no tests — validate them by tracing step IDs and `$GITHUB_OUTPUT` writes.
+- **CI** — `.github/workflows/_ci.yml` runs actionlint (pre-existing findings in older workflows are listed in `.github/actionlint.yaml`), shellcheck on `actions/` and `tests/`, and the script tests under `tests/`. Older workflows have no tests — validate them by tracing step IDs and `$GITHUB_OUTPUT` writes.
 - **AI prompts centralized** — `prompts/` contains system prompts shared across all consumer repos. Reusable doc workflows check out this repo via sparse checkout to access them at runtime.
 
 ---
