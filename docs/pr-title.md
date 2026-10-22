@@ -62,7 +62,6 @@ on:
 
 permissions:
   pull-requests: write
-  statuses: write
 
 jobs:
   call-pr-title:
@@ -75,7 +74,6 @@ jobs:
         ("ALFP-107 add express checkout").
       validate-single-commit: true
       single-commit-matches-title: true
-      wip: true
       ignore-labels: ignore-semantic-pull-request
       comment: true
 ```

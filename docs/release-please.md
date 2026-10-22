@@ -11,8 +11,8 @@ Every run (push to the base branch, weekly schedule, or manual dispatch):
 1. **Release** (`googleapis/release-please-action@v4`):
    - Opens or updates the release PR `chore(<branch>): release X.Y.Z` with the version bump
      and a new `CHANGELOG.md` entry.
-   - When that PR is merged, tags the merge commit (`X.Y.Z`, no `v`) and publishes a
-     GitHub Release.
+   - When that PR is merged, tags the merge commit and publishes a GitHub Release, both named
+     `X.Y.Z` with no `v` prefix (the org version convention).
 
    The bump comes from Conventional Commit subjects:
 
@@ -43,7 +43,7 @@ repo, so the shared part is synced in:
 
 | Where | Owner | Contents |
 |---|---|---|
-| Top-level keys | **ci-templates**: [`release-please-config.base.json`](../actions/release-please-config/release-please-config.base.json) | `release-type` (`php`), tags without `v` and component, changelog sections |
+| Top-level keys | **ci-templates**: [`release-please-config.base.json`](../actions/release-please-config/release-please-config.base.json) | `release-type` (`php`), tags and release names without `v` or component, changelog sections |
 | Other top-level keys | project | e.g. `bootstrap-sha`, `plugins` |
 | `packages` | project | one entry per package path; package keys override the shared top-level ones |
 | `.release-please-manifest.json` | release-please | the current version; created by the sync when missing (latest `X.Y.Z`/`vX.Y.Z` tag, or `0.0.0`) |
@@ -55,6 +55,7 @@ A typical module config after the sync:
   "$schema": "…",
   "release-type": "php",
   "include-v-in-tag": false,
+  "include-v-in-release-name": false,
   "include-component-in-tag": false,
   "changelog-sections": [ … ],
   "packages": {
