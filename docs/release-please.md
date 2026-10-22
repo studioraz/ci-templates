@@ -123,6 +123,9 @@ jobs:
    creates `release-please-config.json` and, if missing, the manifest starting at the
    latest tag. Add `extra-files` under `packages["."]` if the module has version
    strings, then merge.
+   Until it is merged the *release* job fails: there is no config yet, or it has no
+   `release-type`, in which case release-please falls back to `node` and looks for
+   `package.json`. The *sync-config* job still succeeds.
 2. Composer modules: leave `version` out of `composer.json`. Packagist reads the version
    from tags, and release-please only updates that field when it exists.
 3. Add [`pr-title.yml`](pr-title.md) so every squash commit is a Conventional Commit.
