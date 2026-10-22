@@ -1,0 +1,121 @@
+name: Release Please
+
+on:
+  workflow_call:
+    inputs:
+      target-branch:
+        description: "Branch releases are cut from (defaults to the repository default branch)"
+        required: false
+        type: string
+        default: ""
+      config-file:
+        description: "release-please config file"
+        required: false
+        type: string
+        default: "release-please-config.json"
+      manifest-file:
+        description: "release-please manifest file"
+        required: false
+        type: string
+        default: ".release-please-manifest.json"
+      sync-config:
+        description: "Open a PR when the config differs from the shared defaults in ci-templates"
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      token:
+        description: "PAT or GitHub App token (falls back to GITHUB_TOKEN). Needed for CI to run on the release and sync PRs."
+        required: false
+    outputs:
+      released:
+        description: "Version released by this run (empty if none)"
+        value: ${{ jobs.release.outputs.released }}
+      tag-name:
+        description: "Tag created by this run (empty if none)"
+        value: ${{ jobs.release.outputs.tag-name }}
+
+jobs:
+  release:
+    if: github.ref_name == (inputs.target-branch || github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-please-${{ github.repository }}
+      cancel-in-progress: false
+    outputs:
+      released: ${{ steps.release.outputs.release_created && steps.release.outputs.version || '' }}
+      tag-name: ${{ steps.release.outputs.release_created && steps.release.outputs.tag_name || '' }}
+    steps:
+      # Reads the config and manifest from the target branch through the GitHub API,
+      # which is why they live in the project repo and are synced by the job below.
+      - name: Release
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.token || github.token }}
+          target-branch: ${{ inputs.target-branch || github.event.repository.default_branch }}
+          config-file: ${{ inputs.config-file }}
+          manifest-file: ${{ inputs.manifest-file }}
+
+  sync-config:
+    if: inputs.sync-config && github.ref_name == (inputs.target-branch || github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-please-config-sync-${{ github.repository }}
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ secrets.token || github.token }}
+      GH_REPO: ${{ github.repository }}
+      BASE_BRANCH: ${{ inputs.target-branch || github.event.repository.default_branch }}
+      SYNC_BRANCH: ci-templates/release-please-config-sync
+      TITLE: "chore(release): sync release-please config"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BASE_BRANCH }}
+          fetch-depth: 0 # tags, to start a missing manifest at the latest release
+          token: ${{ secrets.token || github.token }}
+
+      - name: Update shared defaults
+        uses: studioraz/ci-templates/actions/release-please-config@master
+        with:
+          config-file: ${{ inputs.config-file }}
+          manifest-file: ${{ inputs.manifest-file }}
+
+      - name: Open or update sync PR
+        env:
+          CONFIG_FILE: ${{ inputs.config-file }}
+        run: |
+          pr="$(gh pr list --head "$SYNC_BRANCH" --base "$BASE_BRANCH" --state open --json number --jq '.[0].number // empty')"
+
+          if git diff --quiet && [[ -z "$(git ls-files --others --exclude-standard)" ]]; then
+            echo "::notice::release-please config is up to date"
+            if [[ -n "$pr" ]]; then
+              gh pr close "$pr" --delete-branch --comment "Config is already up to date."
+            fi
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$SYNC_BRANCH"
+          git add -A
+          git commit -q -m "$TITLE"
+          # Skip the push (and PR noise) when the open PR already has this content.
+          if git fetch -q origin "$SYNC_BRANCH" 2>/dev/null && [[ -n "$pr" ]] && git diff --quiet FETCH_HEAD HEAD; then
+            echo "::notice::Sync PR #$pr is already up to date"
+            exit 0
+          fi
+          git push --force origin "$SYNC_BRANCH"
+
+          body="$(printf '%s\n\n%s\n\n%s\n' \
+            "Updates the shared release-please defaults from [studioraz/ci-templates](https://github.com/studioraz/ci-templates/blob/master/actions/release-please-config/release-please-config.base.json)." \
+            "Only the top-level keys of \`$CONFIG_FILE\` that ci-templates manages are changed; \`packages\` (release type overrides, \`extra-files\`, …) is untouched. To change the shared defaults, open a PR in ci-templates instead of editing them here." \
+            "Generated by the release-please workflow.")"
+          if [[ -n "$pr" ]]; then
+            gh pr edit "$pr" --title "$TITLE" --body "$body"
+            echo "::notice::Updated release-please config sync PR #$pr"
+          else
+            gh pr create --base "$BASE_BRANCH" --head "$SYNC_BRANCH" --title "$TITLE" --body "$body"
+          fi

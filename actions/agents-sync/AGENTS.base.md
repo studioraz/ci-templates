@@ -247,6 +247,7 @@ BREAKING CHANGE: what breaks and how to migrate (only for breaking changes).
 * Include screenshots for UI changes.
 * Include test evidence or rationale when skipping tests.
 * **Releases are automated** (CalVer `YYYY.MM.DD.N`): never edit `VERSION` or the release changelog (`docs/CHANGELOG.md`, or `CHANGELOG.md` outside Magento projects) by hand, and never merge or edit the `chore(release): release …` PR's branch manually.
+* **Standalone modules** release with SemVer through release-please: never edit `CHANGELOG.md`, `.release-please-manifest.json`, lines marked `x-release-please-version`, or the shared top-level keys of `release-please-config.json` by hand, and never edit the `chore(…): release …` PR's branch manually.
 
 ### Repository Safety
 

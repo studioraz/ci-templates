@@ -1,0 +1,26 @@
+name: Release Please config sync
+description: >-
+  Writes the Studioraz shared release-please defaults into the project's
+  release-please-config.json (top-level keys only; "packages" stays project-owned) and
+  creates the manifest when missing. Only changes files; committing and opening a PR is
+  up to the caller.
+
+inputs:
+  config-file:
+    description: release-please config file
+    required: false
+    default: release-please-config.json
+  manifest-file:
+    description: release-please manifest file
+    required: false
+    default: .release-please-manifest.json
+
+runs:
+  using: composite
+  steps:
+    - name: Update shared defaults
+      shell: bash
+      run: bash "$GITHUB_ACTION_PATH/sync.sh"
+      env:
+        CONFIG_FILE: ${{ inputs.config-file }}
+        MANIFEST_FILE: ${{ inputs.manifest-file }}

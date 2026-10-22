@@ -37,3 +37,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: tests/agents-sync/run.sh
+
+  test-release-please-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: tests/release-please-config/run.sh
