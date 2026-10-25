@@ -1,0 +1,199 @@
+name: DB Sync
+
+# Copies one environment's database into another (e.g. production → staging) with
+# studioraz/deployer-magento: `dep db:pull` dumps the source, `dep db:push` imports it.
+on:
+  workflow_call:
+    inputs:
+      source-environment:
+        description: Environment (Deployer host and GitHub environment) to dump
+        type: string
+        required: false
+        default: production
+      target-environment:
+        description: Environment to overwrite; never production
+        type: string
+        required: false
+        default: staging
+      confirm:
+        description: Must equal target-environment
+        type: string
+        required: true
+      dump-mode:
+        description: "'stripped' strips @trade (customers, orders, quotes); 'full' keeps all data"
+        type: string
+        required: false
+        default: stripped
+      exclude-tables:
+        description: Space-separated tables (wildcards allowed) or n98 groups to dump without data, in both modes
+        type: string
+        required: false
+        default: ""
+      backup:
+        description: Back up the target database before overwriting it
+        type: boolean
+        required: false
+        default: true
+      php-version:
+        description: PHP version for Deployer
+        type: string
+        required: false
+        default: "8.3"
+
+env:
+  DUMP_FILE: .db/db-sync.sql.gz
+
+jobs:
+  dump:
+    name: Dump ${{ inputs.source-environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.source-environment }}
+    steps:
+      - name: Validate inputs
+        env:
+          SOURCE: ${{ inputs.source-environment }}
+          TARGET: ${{ inputs.target-environment }}
+          CONFIRM: ${{ inputs.confirm }}
+          MODE: ${{ inputs.dump-mode }}
+        run: |
+          if [[ "$TARGET" == "production" ]]; then echo "::error::Refusing to overwrite production"; exit 1; fi
+          if [[ "$SOURCE" == "$TARGET" ]]; then echo "::error::Source and target must differ"; exit 1; fi
+          if [[ "$CONFIRM" != "$TARGET" ]]; then echo "::error::Type '$TARGET' in confirm to proceed"; exit 1; fi
+          if [[ "$MODE" != "stripped" && "$MODE" != "full" ]]; then echo "::error::dump-mode must be stripped or full"; exit 1; fi
+
+      # Only deploy.php is needed: Magento commands run on the server's deployed release
+      - name: Checkout deploy.php
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: deploy.php
+          sparse-checkout-cone-mode: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php-version }}
+          coverage: none
+
+      - name: Get Composer cache dir
+        id: composer-cache
+        run: echo "dir=$(composer global config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      # Caches the downloaded packages only, so `require` still resolves the latest release
+      - name: Cache Composer downloads
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-deployer-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            composer-deployer-${{ runner.os }}-
+
+      - name: Install Deployer globally
+        run: |
+          composer config --global repositories.packagist.org composer https://packagist.org
+          composer global require studioraz/deployer-magento
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.SSH_CONNECTION_PRIVATE_KEY }}
+
+      - name: Accept host keys
+        run: |
+          mkdir -p ~/.ssh
+          printf 'Host *\n  StrictHostKeyChecking accept-new\n' >> ~/.ssh/config
+
+      - name: Dump database
+        env:
+          SOURCE: ${{ inputs.source-environment }}
+          MODE: ${{ inputs.dump-mode }}
+          EXCLUDE: ${{ inputs.exclude-tables }}
+        run: |
+          strip="$EXCLUDE"
+          if [[ "$MODE" == "stripped" ]]; then strip="@trade $strip"; fi
+          strip="$(echo "$strip" | xargs)"
+          if [[ -n "$strip" ]]; then
+            ~/.composer/vendor/bin/dep db:pull "$SOURCE" -o import=false -o dest="./$DUMP_FILE" -o strip="$strip"
+          else
+            ~/.composer/vendor/bin/dep db:pull "$SOURCE" -o import=false -o dest="./$DUMP_FILE" -o full=true
+          fi
+          {
+            echo "### Database dump"
+            echo "- Source: \`$SOURCE\`"
+            echo "- Mode: \`$MODE\`"
+            echo "- Stripped (structure only): \`${strip:-none}\`"
+            echo "- Size: $(du -h "$DUMP_FILE" | cut -f1)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload dump
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-sync-dump
+          path: ${{ env.DUMP_FILE }}
+          retention-days: 1
+          compression-level: 0
+          if-no-files-found: error
+
+  import:
+    name: Import into ${{ inputs.target-environment }}
+    needs: dump
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target-environment }}
+    steps:
+      # Only deploy.php is needed: Magento commands run on the server's deployed release
+      - name: Checkout deploy.php
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: deploy.php
+          sparse-checkout-cone-mode: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php-version }}
+          coverage: none
+
+      - name: Get Composer cache dir
+        id: composer-cache
+        run: echo "dir=$(composer global config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      # Caches the downloaded packages only, so `require` still resolves the latest release
+      - name: Cache Composer downloads
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-deployer-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            composer-deployer-${{ runner.os }}-
+
+      - name: Install Deployer globally
+        run: |
+          composer config --global repositories.packagist.org composer https://packagist.org
+          composer global require studioraz/deployer-magento
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.SSH_CONNECTION_PRIVATE_KEY }}
+
+      - name: Accept host keys
+        run: |
+          mkdir -p ~/.ssh
+          printf 'Host *\n  StrictHostKeyChecking accept-new\n' >> ~/.ssh/config
+
+      - name: Download dump
+        uses: actions/download-artifact@v4
+        with:
+          name: db-sync-dump
+          path: .db
+
+      - name: Import database
+        env:
+          TARGET: ${{ inputs.target-environment }}
+          BACKUP: ${{ inputs.backup }}
+        run: |
+          ~/.composer/vendor/bin/dep db:push "$TARGET" -o src="./$DUMP_FILE" -o backup="$BACKUP"
+          {
+            echo "### Database import"
+            echo "- Target: \`$TARGET\`"
+            echo "- Backup before import: \`$BACKUP\` (kept in the deploy path's \`backups/\`)"
+          } >> "$GITHUB_STEP_SUMMARY"
