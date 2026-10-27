@@ -22,7 +22,7 @@ on:
         description: "Changelog file to update. Magento projects need another path than CHANGELOG.md (e.g. docs/CHANGELOG.md), because magento2-base deploys its own root CHANGELOG.md"
         required: false
         type: string
-        default: "CHANGELOG.md"
+        default: "docs/CHANGELOG.md"
     secrets:
       token:
         description: "PAT or GitHub App token (falls back to GITHUB_TOKEN). Needed for CI to run on the release PR."

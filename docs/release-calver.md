@@ -47,8 +47,6 @@ permissions:
 jobs:
   call-release-calver:
     uses: studioraz/ci-templates/.github/workflows/release-calver.yml@master
-    with:
-      changelog-file: docs/CHANGELOG.md   # Magento / Mage-OS projects
     secrets:
       token: ${{ secrets.RELEASE_TOKEN }}
 ```
@@ -58,7 +56,7 @@ jobs:
 | `base-branch` | repository default branch | Branch releases are cut from |
 | `timezone` | `Asia/Jerusalem` | Timezone of the release date |
 | `jira-base-url` | `https://studioraz.atlassian.net` | Jira site; empty disables linking |
-| `changelog-file` | `CHANGELOG.md` | Changelog file to update — use `docs/CHANGELOG.md` in Magento / Mage-OS projects (see below) |
+| `changelog-file` | `docs/CHANGELOG.md` | Changelog file to update |
 
 | Secret | Required | Description |
 |---|---|---|
@@ -72,8 +70,8 @@ jobs:
 
 `magento/magento2-base` (and `mage-os/magento2-base`) deploys Magento's own
 `CHANGELOG.md` to the project root on every `composer install`, and the standard Magento
-`.gitignore` excludes `/CHANGELOG.md`. Set `changelog-file: docs/CHANGELOG.md` (the
-caller template does). If `VERSION` or the changelog file is git-ignored, the workflow
+`.gitignore` excludes `/CHANGELOG.md`. The default changelog path is `docs/CHANGELOG.md`.
+If `VERSION` or the changelog file is git-ignored, the workflow
 fails early with an error naming the file.
 
 ## Repository setup
