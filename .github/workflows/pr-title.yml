@@ -22,12 +22,14 @@ on:
         description: "Regex the subject must match (empty: any subject)"
         required: false
         type: string
-        default: ""
+        default: ^([A-Z][A-Z0-9]+-\d+ )?(?![A-Z]).+$
       subject-pattern-error:
         description: "Error shown when subject-pattern does not match"
         required: false
         type: string
-        default: ""
+        default: |
+          The subject "{subject}" must start lowercase, optionally after a Jira key
+          ("BIGE-707 select terminal by installment range").
       validate-single-commit:
         description: "For one-commit PRs also validate the commit message, which GitHub suggests for the squash commit"
         required: false

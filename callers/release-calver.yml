@@ -12,10 +12,6 @@ permissions:
 jobs:
   call-release-calver:
     uses: studioraz/ci-templates/.github/workflows/release-calver.yml@master
-    with:
-      # Magento / Mage-OS projects: magento2-base deploys (and .gitignore excludes)
-      # its own root CHANGELOG.md, so keep the release changelog elsewhere.
-      changelog-file: docs/CHANGELOG.md
     secrets:
       # Optional PAT / GitHub App token; without it CI does not run on the release PR.
       token: ${{ secrets.RELEASE_TOKEN }}

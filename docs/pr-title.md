@@ -42,8 +42,8 @@ All inputs are optional; without them the check behaves as above.
 | `types` | Conventional Commit types | Allowed types, one regex per line |
 | `scopes` | any | Allowed scopes, one regex per line (auto-wrapped in `^…$`) |
 | `require-scope` | `false` | Require a scope |
-| `subject-pattern` | any | Regex the subject must match |
-| `subject-pattern-error` | action default | Error shown when `subject-pattern` fails (`{subject}`, `{title}` placeholders) |
+| `subject-pattern` | `^([A-Z][A-Z0-9]+-\d+ )?(?![A-Z]).+$` | Regex the subject must match (optional Jira key followed by a lowercase description) |
+| `subject-pattern-error` | `The subject "{subject}" must start lowercase, optionally after a Jira key ("BIGE-707 select terminal by installment range").` | Error shown when `subject-pattern` fails (`{subject}`, `{title}` placeholders) |
 | `validate-single-commit` | `false` | For one-commit PRs also validate the commit message, which GitHub suggests for the squash commit instead of the title |
 | `single-commit-matches-title` | `false` | With `validate-single-commit`, also require the commit message to equal the title |
 | `wip` | `false` | `[WIP] …` titles keep the check pending. Needs `statuses: write` |
@@ -53,7 +53,7 @@ All inputs are optional; without them the check behaves as above.
 The reusable workflow declares no permissions, so the caller's grant applies: give the
 extra permissions only when you turn on `wip` or `comment`.
 
-Strict variant, as used by standalone modules:
+Additional strict settings, as used by standalone modules:
 
 ```yaml
 on:
@@ -67,11 +67,6 @@ jobs:
   call-pr-title:
     uses: studioraz/ci-templates/.github/workflows/pr-title.yml@master
     with:
-      # Optional Jira key, then a lowercase description: "ALFP-107 add x" or "add x".
-      subject-pattern: ^([A-Z][A-Z0-9]+-\d+ )?(?![A-Z]).+$
-      subject-pattern-error: |
-        The subject "{subject}" must start lowercase, optionally after a Jira key
-        ("ALFP-107 add express checkout").
       validate-single-commit: true
       single-commit-matches-title: true
       ignore-labels: ignore-semantic-pull-request
