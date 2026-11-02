@@ -116,6 +116,36 @@ Find the build command in this order:
 
   * `Controller`, `Model`, `Plugin`, `Observer`, `ViewModel`, `Ui/Component`, etc.
 
+### Identifier Naming Conventions
+
+`<Module>` = module name without `SR_` (e.g. `DeliveryMatrix`); `<module>` = its lowercase key with no separators (e.g. `deliverymatrix`, `herp`, `ordersync`); `<module_snake>` = snake_case form (e.g. `delivery_matrix`, `credit_accumulation`). A shorter, unambiguous key is fine (e.g. `credit` for `CreditAccumulation`) — pick one per module and use it everywhere.
+
+| Identifier | Convention | Example |
+|---|---|---|
+| Composer package | `sr/module-<module-kebab>` | `sr/module-herp-account-invitation` |
+| DB table (new) | `studioraz_<module>_<entity>` | `studioraz_credit_ledger`, `studioraz_delivery_rule` |
+| Column added to a core table | `sr_<module>_<field>` (avoid clashes with core/3rd‑party) | `sales_order.sr_credit_amount` |
+| `referenceId` (index/constraint) | UPPERCASE table + columns, `_UNQ` for unique | `STUDIORAZ_CREDIT_RULE_CUSTOMER_UNQ` |
+| CLI command | `sr:<module>:<command-name>` (kebab-case action, extra `:` segments allowed) | `sr:credit:month-end`, `sr:ordersync:seed` |
+| CLI command class | `Console/Command/<Action>Command.php`, name in a `private const NAME` | `MonthEndCommand` |
+| Admin config section | `sr<module>`; paths `sr<module>/<group>/<field>` | `srdeliverymatrix/create_shipment_policy/enable` |
+| Config path constants | `XML_PATH_<FIELD>` constants + typed getters in `Model/Config.php` (no helpers) | `XML_PATH_ENABLED` |
+| ACL resource | `SR_<Module>::<resource>`; root `SR_<Module>::main`, config `SR_<Module>::configuration`, under `SR_Base::srbase` | `SR_HERP::invitations` |
+| Admin/frontend route | `id` and `frontName` `sr<module>` | `srdeliverymatrix` |
+| UI component files | `sr<module>_<entity>_listing.xml` / `_form.xml` | `srherp_invitation_listing.xml` |
+| Layout handles | `<route>_<controller>_<action>` | `srdeliverymatrix_deliveryetarule_edit` |
+| Plugin / observer `name` | `sr_<module_snake>_<purpose>` | `sr_credit_accumulation_place_order` |
+| Custom events dispatched | `sr_<module>_<subject>_<when>` | `sr_ordersync_before_save_order` |
+| Cron job | `sr_<module_snake>_<job>` | `sr_credit_accumulation_month_end` |
+| Message queue topic / consumer | `sr<module>.<entity>.<action>`; consumer `…consumer` | `srherp.heshin.sync.async` |
+| Virtual types | `Sr<Module><Purpose>` (PascalCase) | `SrHerpMainLogger` |
+| Log file | `var/log/sr<module>.log` via a virtual logger + handler | `var/log/srherp.log` |
+| Customer-data section | `sr-<module-kebab>` | `sr-credit-accumulation` |
+| Translations | `i18n/<locale>.csv` (`en_US.csv`, plus store locales e.g. `he_IL.csv`) | — |
+
+* Apply these to **new** identifiers. Don't rename existing tables, columns, config paths, ACL ids or cron/queue names that deviate (e.g. `sr_herp_agent`, `srherp_invoice_sync`) — renaming breaks stored data, config and permissions unless a migration is part of the task.
+
+
 ---
 
 ## 4. Output Format for Copilot
