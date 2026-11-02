@@ -122,7 +122,7 @@ Find the build command in this order:
 
 | Identifier | Convention | Example |
 |---|---|---|
-| Composer package | `sr/module-<module-kebab>` | `sr/module-herp-account-invitation` |
+| Composer package | `studioraz/module-<module-kebab>` | `studioraz/module-herp-account-invitation` |
 | DB table (new) | `studioraz_<module>_<entity>` | `studioraz_credit_ledger`, `studioraz_delivery_rule` |
 | Column added to a core table | `sr_<module>_<field>` (avoid clashes with core/3rd‑party) | `sales_order.sr_credit_amount` |
 | `referenceId` (index/constraint) | UPPERCASE table + columns, `_UNQ` for unique | `STUDIORAZ_CREDIT_RULE_CUSTOMER_UNQ` |
