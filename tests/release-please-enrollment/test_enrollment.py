@@ -249,6 +249,7 @@ class EnrollmentTest(unittest.TestCase):
         self.assertEqual(applied["status"], "draft-pr")
         self.assertEqual(tool.enroll(repo, self.args, "fixture")["status"], "existing-pr")
         self.assertEqual(len(self.prs), 1)
+        self.prs[0]["body"] += "\n\nReview note: preserve this."
         # A new shared default is an owned fast-forward update, never a force push.
         original_read = tool.read_json
 
@@ -261,6 +262,7 @@ class EnrollmentTest(unittest.TestCase):
         with patch.object(tool, "read_json", side_effect=changed_base):
             self.assertEqual(tool.enroll(repo, self.args, "fixture")["status"], "draft-pr")
         self.assertEqual(len(self.prs), 1)
+        self.assertIn("Review note: preserve this.", self.prs[0]["body"])
         count = tool.run("git", "rev-list", "--count", f"HEAD..{tool.BRANCH}", cwd=self.remote)
         self.assertEqual(count, "2")
 

@@ -200,7 +200,8 @@ The stable branch is `ci-templates/release-please-enrollment`, with PR/commit ti
 `ci: configure release please`. Reruns recognize unchanged owned draft PRs and do not
 create duplicates. Updates require this operator's tool-marked commits and PR, only
 enrollment paths, and an unchanged base; updates are fast-forward pushes, never force
-pushes. Unowned branches, ready PRs, concurrent edits and moved bases block updates.
+pushes. Existing PR bodies/review notes are not rewritten; bootstrap footers must
+match the requested intent. Unowned branches, ready PRs, concurrent edits and moved bases block updates.
 
 The tool **never changes repository settings**, merges a PR or dispatches a release.
 Drafts carry explicit merge blockers: approve squash-only `PR_TITLE`/`PR_BODY`,

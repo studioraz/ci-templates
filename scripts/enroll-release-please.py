@@ -316,6 +316,10 @@ def enroll(repo, args, user, report=None):
             if (not commits or MARKER not in (existing.get("body") or "")
                     or existing["title"] != TITLE or not existing["draft"]):
                 raise Blocked("Enrollment branch contains unrecognized commits")
+            if args.initial_version and re.findall(
+                r"^Release-As:\s*(\S+)\s*$", existing["body"], re.M
+            ) != [args.initial_version]:
+                raise Blocked("Existing PR bootstrap footer differs from requested initial version")
             for commit in commits:
                 message = run("git", "show", "-s", "--format=%B", commit, cwd=clone)
                 author = run("git", "show", "-s", "--format=%ae", commit, cwd=clone)
@@ -358,8 +362,7 @@ def enroll(repo, args, user, report=None):
             "commit", "--quiet", "-m", message, cwd=clone)
         run("git", "push", "--quiet", "origin", f"HEAD:refs/heads/{BRANCH}", cwd=clone)
         if existing:
-            run("gh", "api", "--method", "PATCH", f"repos/{repo}/pulls/{existing['number']}",
-                "-f", f"title={TITLE}", "-f", f"body={body}")
+            # Keep review notes and operator-added prerequisites on the owned PR.
             url = existing["html_url"]
         else:
             url = run("gh", "pr", "create", "--repo", repo, "--base", branch, "--head", BRANCH,
