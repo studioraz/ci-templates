@@ -168,7 +168,7 @@ class EnrollmentTest(unittest.TestCase):
         self.assertEqual(selected, ["studioraz/magento2-good"])
         self.assertEqual(len(excluded), 4)
 
-    def integration(self, initial=None):
+    def integration(self, initial=None, private=True):
         """Real git clone/push; mock only GitHub transport and settings responses."""
         self.remote = self.repo / "remote.git"
         branch = self.git("branch", "--show-current")
@@ -177,6 +177,7 @@ class EnrollmentTest(unittest.TestCase):
         self.prs = []
         metadata = {
             "fork": False, "archived": False, "disabled": False, "default_branch": branch,
+            "private": private,
             "allow_squash_merge": True, "allow_merge_commit": True, "allow_rebase_merge": True,
             "squash_merge_commit_title": "COMMIT_OR_PR_TITLE",
             "squash_merge_commit_message": "COMMIT_MESSAGES",
@@ -322,6 +323,26 @@ class EnrollmentTest(unittest.TestCase):
                 tool.api("repos/example/actions/permissions")
         self.assertIn("HTTP 403", str(raised.exception))
         self.assertNotIn("secret", str(raised.exception))
+
+    def test_public_caller_private_source_is_blocked_before_apply(self):
+        self.tag("1.0.0")
+        repo = self.integration(private=False)
+        self.args.apply = True
+        with self.assertRaisesRegex(tool.Blocked, "Public callers"):
+            tool.enroll(repo, self.args, "fixture")
+        self.assertFalse(self.prs)
+        self.args.apply = False
+        report = {}
+        with self.assertRaisesRegex(tool.Blocked, "Public callers"):
+            tool.enroll(repo, self.args, "fixture", report)
+        self.assertIn("patch", report)
+        self.assertFalse(report["prerequisites"]["workflow_access_compatible"])
+
+    def test_public_caller_public_source_compatible(self):
+        self.tag("1.0.0")
+        repo = self.integration(private=False)
+        self.args.shared_private = False
+        self.assertEqual(tool.enroll(repo, self.args, "fixture")["status"], "dry-run")
 
     def test_forks_excluded_even_explicit(self):
         with patch.object(tool, "api", return_value={"fork": True}):

@@ -212,7 +212,7 @@ def prepare(clone, branch, releases, initial):
     return manifest["."], evidence
 
 
-def audit(repo, metadata):
+def audit(repo, metadata, shared_private):
     actions = api(f"repos/{repo}/actions/permissions")
     workflow = api(f"repos/{repo}/actions/permissions/workflow")
     rules = api(f"repos/{repo}/rulesets?includes_parents=true")
@@ -226,6 +226,10 @@ def audit(repo, metadata):
     # Legacy tag protections are retired by GitHub; active tag rules live in rulesets.
     rule_details = [api(f"repos/{repo}/rulesets/{rule['id']}?includes_parents=true") for rule in rules]
     blockers = []
+    compatible = not (shared_private and metadata.get("private") is False)
+    if not compatible:
+        blockers.append("Public callers cannot use private ci-templates reusable workflows; "
+                        "organization access and RELEASE_TOKEN cannot bypass this restriction")
     if not actions["enabled"] or actions.get("allowed_actions") != "all" or actions.get("sha_pinning_required"):
         blockers.append("Actions disabled/restricted or SHA pinning required; review reusable and nested action allowlists")
         if actions.get("allowed_actions") == "selected":
@@ -240,6 +244,7 @@ def audit(repo, metadata):
         blockers.append("Protected branch/rulesets: review required checks, bypasses and tag creation before merge")
     return {"actions": actions, "workflow_permissions": workflow, "rulesets": rule_details,
             "branch_protected": protection["protected"], "branch_protection": legacy_protection,
+            "workflow_access_compatible": compatible,
             "merge_blockers": blockers,
             "token": "RELEASE_TOKEN effectiveness unknown (organization secret metadata not queried); "
                      "GITHUB_TOKEN fallback does not trigger bot PR CI. Do not require unavailable checks."}
@@ -258,7 +263,12 @@ def enroll(repo, args, user, report=None):
         return {"repo": repo, "status": "excluded", "reason": "template/example/test repository"}
     branch = metadata["default_branch"]
     releases = [item for page in pages(f"repos/{repo}/releases?per_page=100") for item in page]
-    report.update(branch=branch, prerequisites=audit(repo, metadata))
+    report.update(branch=branch, prerequisites=audit(repo, metadata, getattr(args, "shared_private", True)))
+    access_error = next(
+        (item for item in report["prerequisites"]["merge_blockers"] if item.startswith("Public callers")), None
+    )
+    if args.apply and access_error:
+        raise Blocked(access_error)
     with tempfile.TemporaryDirectory(prefix="release-please-enroll-") as temp:
         clone = Path(temp) / "repo"
         run("gh", "repo", "clone", repo, str(clone), "--", "--quiet", "--no-checkout")
@@ -271,6 +281,8 @@ def enroll(repo, args, user, report=None):
             in path.read_text()
         ]
         if existing_callers:
+            if access_error:
+                raise Blocked(access_error)
             if args.initial_version:
                 raise Blocked("Existing enrollment cannot be re-bootstrapped with --initial-version")
             config = read_json(clone / "release-please-config.json", {})
@@ -286,6 +298,8 @@ def enroll(repo, args, user, report=None):
         run("git", "add", "--", *sorted(FILES), cwd=clone)
         report["diff"] = run("git", "diff", "--cached", "--stat", cwd=clone)
         report["patch"] = run("git", "diff", "--cached", cwd=clone)
+        if access_error:
+            raise Blocked(access_error)
         tree = run("git", "write-tree", cwd=clone)
         if not report["diff"]:
             report["status"] = "already-enrolled"
@@ -390,8 +404,12 @@ def main():
     try:
         run("gh", "auth", "status")
         user = api("user")["login"]
-        access = api("repos/studioraz/ci-templates/actions/permissions/access")
-        if access["access_level"] not in ("organization", "enterprise"):
+        args.shared_private = api("repos/studioraz/ci-templates")["private"]
+        access = (
+            api("repos/studioraz/ci-templates/actions/permissions/access")
+            if args.shared_private else {"access_level": "public"}
+        )
+        if access["access_level"] not in ("organization", "enterprise", "public"):
             raise Blocked("Private shared workflows are not accessible to organization consumers")
         base_path = "actions/release-please-config/release-please-config.base.json"
         shared_sha = api(f"repos/studioraz/ci-templates/contents/{base_path}?ref=master")["sha"]

@@ -207,6 +207,12 @@ Drafts carry explicit merge blockers: approve squash-only `PR_TITLE`/`PR_BODY`,
 Actions write/create-PR permissions, private shared-workflow access and allowed-actions
 policies, required-check/bypass and tag-protection rules. When effective `RELEASE_TOKEN`
 is unknown, do not require bot PR CI that `GITHUB_TOKEN` cannot trigger.
+**Public repositories cannot call workflows in private `ci-templates`, even with
+organization access or a PAT.** Such targets are reported as blocked, and `--apply`
+refuses any branch/PR writes. Resolving this requires an explicitly approved public
+shared-workflow distribution (including its composite actions), or a separately
+approved caller visibility change; this tool does neither. See GitHub's
+[reusable workflow access table](https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations#access-to-reusable-workflows).
 PR creation and static validation are not live workflow proof: review prerequisites,
 merge the pilot deliberately, then observe release/config-sync and PR-title runs before
 bulk enrollment. Do not trigger an artificial release just to test onboarding.
