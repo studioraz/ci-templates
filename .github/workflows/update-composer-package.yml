@@ -263,13 +263,13 @@ jobs:
             TITLE="${IN_TITLE}"
           else
             if [[ "$PKG" == "*" ]]; then
-              TITLE="chore(composer): update all packages"
+              TITLE="chore(deps): update all packages"
             elif [[ -n "${OLD}" && -n "${NEW}" && "${OLD}" != "${NEW}" ]]; then
-              TITLE="chore(composer): bump ${PKG} from ${OLD} to ${NEW}"
+              TITLE="chore(deps): bump ${PKG} from ${OLD} to ${NEW}"
             elif [[ -n "${NEW}" ]]; then
-              TITLE="chore(composer): update ${PKG} to ${NEW}"
+              TITLE="chore(deps): update ${PKG} to ${NEW}"
             else
-              TITLE="chore(composer): update ${PKG}"
+              TITLE="chore(deps): update ${PKG}"
             fi
           fi
 
@@ -305,7 +305,7 @@ jobs:
             if [[ "$TARGET" == "pr" ]]; then
               git commit -m "${{ steps.meta.outputs.commit_message }}" || echo "Nothing to commit"
             else
-              MSG="chore(composer): update ${{ inputs.package }}${{ inputs.version != '' && format(' to {0}', inputs.version) || '' }}"
+              MSG="chore(deps): update ${{ inputs.package }}${{ inputs.version != '' && format(' to {0}', inputs.version) || '' }}"
               git commit -m "$MSG" || echo "Nothing to commit"
             fi
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
