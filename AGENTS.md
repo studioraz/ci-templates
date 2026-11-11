@@ -68,6 +68,9 @@ Release-please-style releases with CalVer versions `YYYY.MM.DD.N`; keeps a relea
 ### `release-please.yml`
 SemVer releases for standalone modules with [release-please](https://github.com/googleapis/release-please): release PR, tag and GitHub Release on merge, `released` output for chaining. The shared config defaults live in `actions/release-please-config/release-please-config.base.json` and reach each module through a sync PR. Full reference: [docs/release-please.md](docs/release-please.md).
 
+### `db-sync.yml`
+Copies a database between environments (production → staging) via `dep db:pull` and `dep db:push` (studioraz/deployer-magento); inputs for stripped/full dump, excluded heavy tables and a target backup. Never targets production. Full reference: [docs/db-sync.md](docs/db-sync.md).
+
 ### `agents-sync.yml`
 Syncs the organization agent instructions (`actions/agents-sync/AGENTS.base.md`) into a managed block of each project's `AGENTS.md` via a weekly PR, and makes `CLAUDE.md` import it. Full reference: [docs/agents-sync.md](docs/agents-sync.md).
 

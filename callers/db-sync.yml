@@ -1,0 +1,43 @@
+name: DB Sync (production → staging)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type "staging" to overwrite the staging database
+        type: string
+        required: true
+      dump-mode:
+        description: "stripped: without customers/orders/quotes (@trade); full: all data"
+        type: choice
+        options: [stripped, full]
+        default: stripped
+      exclude-tables:
+        description: Heavy optional tables or n98 groups to copy without data (space-separated, wildcards allowed)
+        type: string
+        required: false
+        default: "@log @sessions"
+      backup:
+        description: Back up the staging database before overwriting it
+        type: boolean
+        default: true
+
+concurrency:
+  group: db-sync-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  call-db-sync:
+    uses: studioraz/ci-templates/.github/workflows/db-sync.yml@master
+    with:
+      source-environment: production
+      target-environment: staging
+      confirm: ${{ inputs.confirm }}
+      dump-mode: ${{ inputs.dump-mode }}
+      exclude-tables: ${{ inputs.exclude-tables }}
+      backup: ${{ inputs.backup }}
+      php-version: ${{ vars.PHP_VERSION || '8.3' }}
+    secrets: inherit
