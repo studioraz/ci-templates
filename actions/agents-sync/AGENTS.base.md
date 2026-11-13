@@ -262,7 +262,8 @@ BREAKING CHANGE: what breaks and how to migrate (only for breaking changes).
 
 * **Types:**
   * `feat` new feature · `fix` bug fix · `perf` performance improvement · `revert` revert of an earlier change — these appear in the changelog.
-  * `docs`, `style`, `refactor`, `test`, `build`, `ci`, `chore` — do not appear in the changelog.
+  * `refactor` code change without behavior change — appears in the changelog of CalVer projects (Magento projects), hidden for standalone modules.
+  * `docs`, `style`, `test`, `build`, `ci`, `chore` — do not appear in the changelog.
 * **Scope** (optional): the area changed, e.g. `checkout`, `catalog`, a module name.
 * **Description:** lowercase, imperative, no trailing period ("add express checkout", not "Added express checkout.").
 * **Jira key** right after the colon when there is a ticket: `fix(catalog): ALFP-112 hide badge on disabled products`.

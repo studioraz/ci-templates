@@ -158,7 +158,7 @@ link_refs() {
     sed -E -e "s#\\(\\#([0-9]+)\\)#([\\#\\1](${REPO_URL}/issues/\\1))#g" ${jira:+-e "$jira"}
 }
 
-# Fills the BREAKING/FEATURES/FIXES/PERF/REVERTS bullet lists from commits in $1.
+# Fills the BREAKING/FEATURES/FIXES/PERF/REFACTORS/REVERTS bullet lists from commits in $1.
 collect_commits() {
     local range="$1" record sha subject body type scope bang desc bullet breaking_note
     local re='^([a-zA-Z]+)(\(([^)]*)\))?(!)?: (.+)$'
@@ -182,10 +182,11 @@ collect_commits() {
         bullet="$(link_refs <<< "$bullet")"
 
         case "$type" in
-            feat)   FEATURES+=("$bullet") ;;
-            fix)    FIXES+=("$bullet") ;;
-            perf)   PERF+=("$bullet") ;;
-            revert) REVERTS+=("$bullet") ;;
+            feat)     FEATURES+=("$bullet") ;;
+            fix)      FIXES+=("$bullet") ;;
+            perf)     PERF+=("$bullet") ;;
+            refactor) REFACTORS+=("$bullet") ;;
+            revert)   REVERTS+=("$bullet") ;;
         esac
 
         breaking_note="$(grep -m1 -E '^BREAKING[ -]CHANGE: ' <<< "$body" | sed -E 's/^BREAKING[ -]CHANGE: //' || true)"
@@ -243,6 +244,7 @@ build_entry() {
     append_section "Features" "${FEATURES[@]}"
     append_section "Bug Fixes" "${FIXES[@]}"
     append_section "Performance Improvements" "${PERF[@]}"
+    append_section "Code Refactoring" "${REFACTORS[@]}"
     append_section "Reverts" "${REVERTS[@]}"
     append_section "Composer Dependencies" "${DEPENDENCIES[@]}"
 }
@@ -336,14 +338,14 @@ main() {
         [[ -n "$sha" ]] && release "$pr" "$sha" < /dev/null
     done <<< "$pending"
 
-    BREAKING=() FEATURES=() FIXES=() PERF=() REVERTS=() DEPENDENCIES=()
+    BREAKING=() FEATURES=() FIXES=() PERF=() REFACTORS=() REVERTS=() DEPENDENCIES=()
 
     previous="$(last_release_tag)"
     range="${previous:+${previous}..}HEAD"
     collect_commits "$range"
     collect_dependencies "$previous"
 
-    if (( ${#BREAKING[@]} + ${#FEATURES[@]} + ${#FIXES[@]} + ${#PERF[@]} + ${#REVERTS[@]} + ${#DEPENDENCIES[@]} == 0 )); then
+    if (( ${#BREAKING[@]} + ${#FEATURES[@]} + ${#FIXES[@]} + ${#PERF[@]} + ${#REFACTORS[@]} + ${#REVERTS[@]} + ${#DEPENDENCIES[@]} == 0 )); then
         log "No releasable changes since ${previous:-the beginning of history}"
         if ! is_dry_run && pr="$(open_release_pr)" && [[ -n "$pr" ]]; then
             gh pr close "$pr" --delete-branch --comment "Closing: no releasable changes since ${previous}." >/dev/null

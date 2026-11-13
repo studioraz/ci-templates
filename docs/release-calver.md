@@ -24,7 +24,8 @@ The `released` output carries the version tagged by the run, to chain a deploy.
 ## Changelog
 
 - Conventional Commit subjects: `feat` → Features, `fix` → Bug Fixes,
-  `perf` → Performance Improvements, `revert` → Reverts, `!` or a
+  `perf` → Performance Improvements, `refactor` → Code Refactoring,
+  `revert` → Reverts, `!` or a
   `BREAKING CHANGE:` footer → ⚠ BREAKING CHANGES. Other types are not listed.
 - **Composer Dependencies** — every package updated, added or removed in
   `composer.lock` since the last release (dev packages marked `(dev)`).
